@@ -1,0 +1,6 @@
+[package]
+name = "triangulation"
+version = "0.1.0"
+authors = ["JeremySorensen <jeremy.a.sorensen@gmail.com>"]
+
+[dependencies]
