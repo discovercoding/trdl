@@ -24,12 +24,12 @@ impl Vertex {
 
 fn compare_to_line(v_test: &Point, v_prev: &Point, v_next: &Point) -> f32 {
     // returns negative if test is left of line, positive if right, 0 if colinear
-    (v_test.x - v_prev.x)*(v_test.y - v_prev.y) - (v_next.x - v_prev.x)*(v_next.x - v_prev.x)
+    (v_test.x - v_prev.x)*(v_next.y - v_prev.y) - (v_test.y - v_prev.y)*(v_next.x - v_prev.x)
 }
 
 fn is_convex(v_test: &Point, v_prev: &Point, v_next: &Point) -> bool {
     // point is convex if right of line made by prev->next
-    compare_to_line(v_prev, v_test, v_next) > 0.0f32
+    compare_to_line(v_test, v_prev, v_next) > 0.0f32
 }
 
 fn is_in_triangle(v_test: &Point, v0: &Point, v1: &Point, v2: &Point) -> bool {
@@ -185,6 +185,47 @@ pub fn triangulate(points: Vec<Point>) -> Result<Vec<Point>, &'static str> {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::compare_to_line;
+    use super::is_convex;
+    use super::Point;
+
+    #[test]
+    fn test_compare_to_line() {
+        let test = Point { x: 0.2f32, y: 1.2f32 };
+        let v0 = Point { x: 0.1f32, y: 0.1f32 };
+        let v1 = Point { x: 0.5f32, y: 0.5f32 };
+
+        assert!(compare_to_line(&test, &v0, &v1) < 0.0f32);
+        
+        let test = Point { x: 0.2f32, y: -1.0f32 };
+
+        assert!(compare_to_line(&test, &v0, &v1) > 0.0f32);
+        
+        let test = Point{ x: v0.x + (v1.x - v0.x) * 0.2f32, y: v0.y + (v1.y - v0.y) * 0.2f32 };
+        
+        assert_eq!(compare_to_line(&test, &v0, &v1), 0.0f32);
+    }
+    
+    #[test]
+    fn test_is_convex() {
+        let test = Point { x: 0.2f32, y: 1.2f32 };
+        let v0 = Point { x: 0.1f32, y: 0.1f32 };
+        let v1 = Point { x: 0.5f32, y: 0.5f32 };
+
+        assert_eq!(is_convex(&test, &v0, &v1), false);
+        
+        let test = Point { x: 0.2f32, y: -1.0f32 };
+
+        assert!(is_convex(&test, &v0, &v1));
+        
+        let test = Point{ x: v0.x + (v1.x - v0.x) * 0.2f32, y: v0.y + (v1.y - v0.y) * 0.2f32 };
+        
+        assert_eq!(is_convex(&test, &v0, &v1), false);
     }
 }
 
