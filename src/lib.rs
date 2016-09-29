@@ -7,6 +7,11 @@ pub struct Point {
     x: f32,
     y: f32
 }
+impl Point {
+    pub fn new(x: f32, y: f32) -> Point {
+        Point { x: x, y: y }
+    }
+}
 
 #[derive(Debug, PartialEq)]
 struct Vertex {
@@ -190,43 +195,58 @@ pub fn triangulate(points: Vec<Point>) -> Result<Vec<Point>, &'static str> {
 
 #[cfg(test)]
 mod tests {
+    use super::Point;
     use super::compare_to_line;
     use super::is_convex;
-    use super::Point;
+    use super::is_in_triangle;
 
     #[test]
     fn test_compare_to_line() {
-        let test = Point { x: 0.2f32, y: 1.2f32 };
-        let v0 = Point { x: 0.1f32, y: 0.1f32 };
-        let v1 = Point { x: 0.5f32, y: 0.5f32 };
+        let test = Point::new(0.2f32, 1.2f32);
+        let v0 = Point::new(0.1f32,  0.1f32);
+        let v1 = Point::new(0.5f32, 0.5f32);
 
         assert!(compare_to_line(&test, &v0, &v1) < 0.0f32);
         
-        let test = Point { x: 0.2f32, y: -1.0f32 };
+        let test = Point::new(0.2f32, -1.0f32);
 
         assert!(compare_to_line(&test, &v0, &v1) > 0.0f32);
         
-        let test = Point{ x: v0.x + (v1.x - v0.x) * 0.2f32, y: v0.y + (v1.y - v0.y) * 0.2f32 };
+        let test = Point::new(v0.x + (v1.x - v0.x) * 0.2f32, v0.y + (v1.y - v0.y) * 0.2f32);
         
         assert_eq!(compare_to_line(&test, &v0, &v1), 0.0f32);
     }
     
     #[test]
     fn test_is_convex() {
-        let test = Point { x: 0.2f32, y: 1.2f32 };
-        let v0 = Point { x: 0.1f32, y: 0.1f32 };
-        let v1 = Point { x: 0.5f32, y: 0.5f32 };
+        let test = Point::new(0.2f32, 1.2f32);
+        let v0 = Point::new(0.1f32, 0.1f32);
+        let v1 = Point::new(0.5f32, 0.5f32);
 
         assert_eq!(is_convex(&test, &v0, &v1), false);
         
-        let test = Point { x: 0.2f32, y: -1.0f32 };
+        let test = Point::new(0.2f32, -1.0f32);
 
         assert!(is_convex(&test, &v0, &v1));
         
-        let test = Point{ x: v0.x + (v1.x - v0.x) * 0.2f32, y: v0.y + (v1.y - v0.y) * 0.2f32 };
+        let test = Point::new(v0.x + (v1.x - v0.x) * 0.2f32, v0.y + (v1.y - v0.y) * 0.2f32);
         
         assert_eq!(is_convex(&test, &v0, &v1), false);
     }
+    
+    #[test]
+    fn test_is_in_triangle() {
+        let v0 = Point::new(0.1f32, 0.1f32);
+        let v1 = Point::new(0.7f32, -0.2f32);
+        let v2 = Point::new(0.5f32, 0.5f32);
+
+        let test = Point::new(0.2f32, 1.2f32);
+        assert_eq!(is_in_triangle(&test, &v0, &v1, &v2), false);
+        
+        let test = Point::new(0.4f32, 0.2f32);
+        assert!(is_in_triangle(&test, &v0, &v1, &v2));
+        
+        let test = Point::new(v2.x + (v0.x - v2.x) * 0.25f32, v2.y + (v0.y - v2.y) * 0.25f32);
+        assert_eq!(is_in_triangle(&test, &v0, &v1, &v2), false);
+    }
 }
-
-
