@@ -1,6 +1,7 @@
-// module for triangulating a simple polygon using ear clipping
+    // module for triangulating a simple polygon using ear clipping
 
 use std::collections::HashSet;
+use std::fmt;
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub struct Point {
@@ -10,6 +11,12 @@ pub struct Point {
 impl Point {
     pub fn new(x: f32, y: f32) -> Point {
         Point { x: x, y: y }
+    }
+}
+
+impl fmt::Display for Point {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "({}, {})", self.x, self.y)
     }
 }
 
@@ -70,75 +77,98 @@ fn make_vertex_vec(n: usize) -> Vec<Vertex> {
     vertices
 }
 
-fn classify_vertex(points: &Vec<Point>, v_test: &mut Vertex,
-        ear_vec: &mut HashSet<usize>, reflex_set: &mut HashSet<usize>) {
+#[derive(Debug, Eq, PartialEq)]
+enum VertexType {
+    Reflex,
+    Convex,
+    Ear
+}
+
+fn classify_vertex(points: &Vec<Point>, v_test: &mut Vertex, reflex_set: &HashSet<usize>) -> VertexType {
     if is_convex(&points[v_test.index], &points[v_test.prev_index], &points[v_test.next_index]) {
         v_test.is_convex = true;
         if is_ear(&points, reflex_set, &v_test) {
             v_test.is_ear = true;
-            ear_vec.insert(v_test.index);
+             return VertexType::Ear;
+        } else {
+            return VertexType::Convex;
         }
     } else {
-        reflex_set.insert(v_test.index);
+        return VertexType::Reflex;
     }
 }
 
 fn fill_sets(points: &Vec<Point>, vertices: &mut Vec<Vertex>) -> (HashSet<usize>, HashSet<usize>) {
     let mut ear_set = HashSet::new();
     let mut reflex_set = HashSet::new();
-    
-    for v in vertices {
-        classify_vertex(points, v, &mut ear_set, &mut reflex_set);
+
+    for v in vertices.iter_mut() {
+        if classify_vertex(points, v, &reflex_set) == VertexType::Reflex {
+            reflex_set.insert(v.index);
+        }
     }
 
+    for mut v in vertices.iter_mut() {
+        match classify_vertex(points, v, &reflex_set) {
+            VertexType::Reflex => (),
+            VertexType::Convex => {
+                v.is_convex = true;
+            }
+            VertexType::Ear => {
+                v.is_convex = true;
+                v.is_ear = true;
+                ear_set.insert(v.index);
+            }
+        }
+    }
     (ear_set, reflex_set)
 }
 
 fn remove_vertex(vertices: &mut Vec<Vertex>, i_test: usize) {
+
     let prev_index = vertices[i_test].prev_index;
     let next_index = vertices[i_test].next_index;
     vertices[prev_index].next_index = next_index;
     vertices[next_index].prev_index = prev_index;
 }
 
-fn push_triangle(triangles: &mut Vec<Point>, points: &Vec<Point>, i_test: usize, i_prev: usize, i_next: usize) {
-    triangles.push(points[i_prev]);
-    triangles.push(points[i_test]);
-    triangles.push(points[i_next]);
+fn push_triangle(triangles: &mut Vec<usize>, i_test: usize, i_prev: usize, i_next: usize) {
+    triangles.push(i_prev);
+    triangles.push(i_test);
+    triangles.push(i_next);
 }
 
-pub fn triangulate(points: Vec<Point>) -> Result<Vec<Point>, &'static str> {
+pub fn triangulate(points: &Vec<Point>) -> Result<Vec<usize>, &'static str> {
     let mut n = points.len();
     if n < 4 {
         if n == 3 {
-            return Ok(points);
+            return Ok(vec![0, 1, 2]);
         }  else {
-            return Err("Not enough vertices to triangulate")
+            return Err("Not enough vertices to triangulate");
         }
     }
 
     let mut vertices = make_vertex_vec(n);
-    let (mut ear_set, mut reflex_set) = fill_sets(&points, &mut vertices);
+    let (mut ear_set, mut reflex_set) = fill_sets(points, &mut vertices);
 
-    let mut triangles = Vec::with_capacity(3 * (n - 1));
+    let mut triangles = Vec::with_capacity(3 * (n - 2));
     
     loop {
         let ear_index = match ear_set.iter().next() {
             Some(i) => *i,
             None => return Err("Expected an ear in the ear set but found None")
         };
+
         ear_set.remove(&ear_index);
-        let index;
         let prev_index;
         let next_index;
-         {
+        {
             let vertex = &vertices[ear_index];
-            index = vertex.index;
             prev_index = vertex.prev_index;
             next_index = vertex.next_index;
         }
-        push_triangle(&mut triangles, &points, ear_index, prev_index, next_index);
-        remove_vertex(&mut vertices, index);
+        push_triangle(&mut triangles, ear_index, prev_index, next_index);
+        remove_vertex(&mut vertices, ear_index);
         n -= 1;
 
         if n == 3 {
@@ -146,8 +176,14 @@ pub fn triangulate(points: Vec<Point>) -> Result<Vec<Point>, &'static str> {
                 Some(i) => *i,
                 None => return Err("Expected an ear in the ear set but found None")
             };
-            let vertex = &vertices[ear_index];
-            push_triangle(&mut triangles, &points, ear_index, vertex.index, vertex.next_index);
+            let prev_index;
+            let next_index;
+            {
+                let vertex = &vertices[ear_index];
+                prev_index = vertex.prev_index;
+                next_index = vertex.next_index;
+            }
+            push_triangle(&mut triangles, ear_index, prev_index, next_index);
             return Ok(triangles);
         }
 
@@ -164,7 +200,7 @@ pub fn triangulate(points: Vec<Point>) -> Result<Vec<Point>, &'static str> {
                         v_prev.is_convex = true;
                         reflex_set.remove(&prev_index);
                     }
-                    if is_ear(&points, &reflex_set, v_prev) {
+                    if is_ear(points, &reflex_set, v_prev) {
                         ear_set.insert(prev_index);
                     }
                 }
@@ -179,7 +215,7 @@ pub fn triangulate(points: Vec<Point>) -> Result<Vec<Point>, &'static str> {
                     ear_set.remove(&next_index);
                 }
             } else {
-                if is_convex(&points[next_index], &points[v_next.prev_index],& points[v_next.next_index]) {
+                if is_convex(&points[next_index], &points[v_next.prev_index], &points[v_next.next_index]) {
                     if !v_next.is_convex {
                         v_next.is_convex = true;
                         reflex_set.remove(&next_index);
@@ -192,13 +228,13 @@ pub fn triangulate(points: Vec<Point>) -> Result<Vec<Point>, &'static str> {
         }
     }
 }
-
 #[cfg(test)]
 mod tests {
     use super::Point;
     use super::compare_to_line;
     use super::is_convex;
     use super::is_in_triangle;
+    use super::triangulate;
 
     #[test]
     fn test_compare_to_line() {
@@ -248,5 +284,79 @@ mod tests {
         
         let test = Point::new(v2.x + (v0.x - v2.x) * 0.25f32, v2.y + (v0.y - v2.y) * 0.25f32);
         assert_eq!(is_in_triangle(&test, &v0, &v1, &v2), false);
+    }
+
+    fn is_expected_triangle(v0: &usize, v1: &usize, v2: &usize, expected: &(usize, usize, usize)) -> bool {
+        if *v0 == expected.0 && *v1 == expected.1 && *v2 == expected.2 {
+            println!("{}, {}, {} is expected triangle", *v0, *v1, *v2);
+            return true;
+        }
+        if *v1 == expected.0 && *v2 == expected.1 && *v0 == expected.2 {
+            println!("{}, {}, {} is expected triangle", *v0, *v1, *v2);
+            return true;
+        }
+        if *v2 == expected.0 && *v0 == expected.1 && *v1 == expected.2 {
+            println!("{}, {}, {} is expected triangle", *v0, *v1, *v2);
+            return true;
+        }
+        println!("{}, {}, {}, did not match {}, {}, {}", *v0, *v1, *v2, expected.0, expected.1, expected.2);
+        false
+    }
+
+    fn is_same_triangulation(triangles: &Vec<usize>, mut expected: Vec<(usize, usize, usize)>) -> bool {
+        let n = triangles.len() / 3;
+        for i in 0..n {
+            let mut matched = false;
+            let mut match_index = 0;
+            for (index, ex) in expected.iter().enumerate() {
+                if is_expected_triangle(&triangles[i*3], &triangles[i*3+1], &triangles[i*3+2], ex) {
+                    matched = true;
+                    match_index = index;
+                    break;
+                }
+            }
+            if matched {
+                expected.remove(match_index);
+            } else {
+                return false;
+            }
+        }
+        true
+    }
+
+    #[test]
+    fn test_triangulate_square() {
+        let points = vec![ Point::new(0.0f32, 0.0f32),
+                           Point::new(1.0f32, 0.0f32), 
+                           Point::new(1.0f32, 1.0f32), 
+                           Point::new(0.0f32, 1.0f32) ];
+
+        let triangles = triangulate(&points).unwrap();
+
+        for i in 0..(triangles.len() / 3) {
+            println!("{}, {}, {}", triangles[i*3], triangles[i*3+1], triangles[i*3+2]);
+        }
+
+        // there are two valid triangulations of a square, up-right diagonal
+        // and down-right diagonal, so we try both
+        assert!(is_same_triangulation(&triangles, vec![(0, 1, 2), (0, 2, 3)]) ||
+                is_same_triangulation(&triangles, vec![(0, 1, 3), (3, 1, 2)]));
+    }
+
+    #[test]
+    fn test_triangulate_reflex() {
+        let points = vec![ Point::new(0.0f32, 0.0f32),
+                            Point::new(5.0f32, 0.0f32), 
+                            Point::new(2.0f32, 2.0f32), 
+                            Point::new(5.0f32, 4.0f32),
+                            Point::new(0.0f32, 4.0f32) ];
+
+        let triangles = triangulate(&points).unwrap();
+
+        for i in 0..(triangles.len() / 3) {
+            println!("{}, {}, {}", triangles[i*3], triangles[i*3+1], triangles[i*3+2]);
+        }
+
+        assert!(is_same_triangulation(&triangles, vec![(0, 1, 2), (0, 2, 4), (4, 2, 3)]));
     }
 }
