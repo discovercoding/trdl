@@ -53,17 +53,21 @@ fn is_in_triangle(v_test: &Point, v0: &Point, v1: &Point, v2: &Point) -> bool {
 
 // note: this function assumes v_test is convex!
 fn is_ear(points: &Vec<Point>, reflex_set: &HashSet<usize>, v_test: &Vertex) -> bool {
+    println!("is_ear({}), prev={}, next={}", v_test.index, v_test.prev_index, v_test.next_index);
     for r in reflex_set {
         if *r == v_test.prev_index || *r == v_test.next_index {
+            println!("{} is adjacent, doesn't count", r);
             continue;
         }
         if is_in_triangle(&points[*r], 
                           &points[v_test.prev_index], 
                           &points[v_test.index], 
                           &points[v_test.next_index]) {
+            println!("{} is in triangle {},{},{}, not an ear", r, v_test.prev_index, v_test.index, v_test.next_index);
             return false;
         }
     }
+    println!("{},{},{}, is an ear", v_test.prev_index, v_test.index, v_test.next_index);
     true
 }
 
@@ -86,9 +90,7 @@ enum VertexType {
 
 fn classify_vertex(points: &Vec<Point>, v_test: &mut Vertex, reflex_set: &HashSet<usize>) -> VertexType {
     if is_convex(&points[v_test.index], &points[v_test.prev_index], &points[v_test.next_index]) {
-        v_test.is_convex = true;
         if is_ear(&points, reflex_set, &v_test) {
-            v_test.is_ear = true;
              return VertexType::Ear;
         } else {
             return VertexType::Convex;
@@ -121,6 +123,7 @@ fn fill_sets(points: &Vec<Point>, vertices: &mut Vec<Vertex>) -> (HashSet<usize>
             }
         }
     }
+    
     (ear_set, reflex_set)
 }
 
@@ -160,6 +163,7 @@ pub fn triangulate(points: &Vec<Point>) -> Result<Vec<usize>, &'static str> {
         };
 
         ear_set.remove(&ear_index);
+
         let prev_index;
         let next_index;
         {
@@ -200,7 +204,8 @@ pub fn triangulate(points: &Vec<Point>) -> Result<Vec<usize>, &'static str> {
                         v_prev.is_convex = true;
                         reflex_set.remove(&prev_index);
                     }
-                    if is_ear(points, &reflex_set, v_prev) {
+                    
+                    if is_ear(&points, &reflex_set, v_prev) {
                         ear_set.insert(prev_index);
                     }
                 }
@@ -220,6 +225,7 @@ pub fn triangulate(points: &Vec<Point>) -> Result<Vec<usize>, &'static str> {
                         v_next.is_convex = true;
                         reflex_set.remove(&next_index);
                     }
+                    
                     if is_ear(&points, &reflex_set, v_next) {
                         ear_set.insert(next_index);
                     }
