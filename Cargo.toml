@@ -3,4 +3,9 @@ name = "triangulation"
 version = "0.1.0"
 authors = ["JeremySorensen <jeremy.a.sorensen@gmail.com>"]
 
+[lib]
+name = "triangulation"
+crate-type = ["dylib"]
+
 [dependencies]
+libc = "0.2.16"
