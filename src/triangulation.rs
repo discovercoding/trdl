@@ -8,6 +8,26 @@ pub trait Zeroable {
     fn zero() -> Self;
 }
 
+impl Zeroable for f32 {
+    fn zero() -> f32 { 0.0f32 }
+}
+
+impl Zeroable for f64 {
+    fn zero() -> f64 { 0.0f64 }
+}
+
+impl Zeroable for i32 {
+    fn zero() -> i32 { 0i32 }
+}
+
+impl Zeroable for i16 {
+    fn zero() -> i16 { 0i16 }
+}
+
+impl Zeroable for isize {
+    fn zero() -> isize { 0isize }
+}
+
 pub trait Point {
     type T: PartialOrd + PartialEq + Sub + Mul + Zeroable + fmt::Display;
     fn get_x(&self) -> Self::T;
@@ -135,6 +155,7 @@ fn fill_sets<P, U>(points: &Vec<P>, vertices: &mut Vec<Vertex>) -> (HashSet<usiz
                 v.is_convex = true;
             }
             VertexType::Ear => {
+                println!("adding {} to ear list", v.index);
                 v.is_convex = true;
                 v.is_ear = true;
                 ear_set.insert(v.index);
@@ -182,6 +203,7 @@ pub fn triangulate<P, U>(points: &Vec<P>) -> Result<Vec<usize>, &'static str>
         };
 
         ear_set.remove(&ear_index);
+        println!("removing {} from ear list", ear_index);
 
         let prev_index;
         let next_index;
@@ -202,6 +224,7 @@ pub fn triangulate<P, U>(points: &Vec<P>) -> Result<Vec<usize>, &'static str>
             let prev_index;
             let next_index;
             {
+                println!("removing last ear {}", ear_index);
                 let vertex = &vertices[ear_index];
                 prev_index = vertex.prev_index;
                 next_index = vertex.next_index;
@@ -216,6 +239,7 @@ pub fn triangulate<P, U>(points: &Vec<P>) -> Result<Vec<usize>, &'static str>
                 if !is_ear(&points, &reflex_set, v_prev) {
                     v_prev.is_ear = false;
                     ear_set.remove(&prev_index);
+                    println!("{} is no longer an ear", prev_index);
                 }
             } else {
                 if is_convex(&points[prev_index], &points[v_prev.prev_index], &points[v_prev.next_index]) {
@@ -226,6 +250,7 @@ pub fn triangulate<P, U>(points: &Vec<P>) -> Result<Vec<usize>, &'static str>
                     
                     if is_ear(&points, &reflex_set, v_prev) {
                         ear_set.insert(prev_index);
+                        println!("{} is now an ear", prev_index);
                     }
                 }
             }
@@ -237,6 +262,7 @@ pub fn triangulate<P, U>(points: &Vec<P>) -> Result<Vec<usize>, &'static str>
                 if !is_ear(&points, &reflex_set, v_next) {
                     v_next.is_ear = false;
                     ear_set.remove(&next_index);
+                    println!("{} is no longer an ear", next_index);
                 }
             } else {
                 if is_convex(&points[next_index], &points[v_next.prev_index], &points[v_next.next_index]) {
@@ -247,6 +273,7 @@ pub fn triangulate<P, U>(points: &Vec<P>) -> Result<Vec<usize>, &'static str>
                     
                     if is_ear(&points, &reflex_set, v_next) {
                         ear_set.insert(next_index);
+                        println!("{} is now an ear", next_index);
                     }
                 }
             }
@@ -277,56 +304,56 @@ pub fn find_edges(triangles: &Vec<usize>, max: usize) -> Vec<bool> {
     edges
 }
 
-extern crate libc;
-
-use libc::size_t;
-use libc::c_float;
-use libc::c_uchar;
-use std::ptr;
-
-impl Zeroable for f32 {
-    fn zero() -> f32 { 0.0f32 }
-}
-
-#[no_mangle]
-pub extern "C" fn c_triangulate(num_points: size_t, c_points: *const c_float, 
-                                num_triangle_indices: size_t, c_triangle_indices: *mut size_t,
-                                num_edges: size_t, c_edges: *mut c_uchar) -> i32 {
-    if num_points % 3usize != 0usize {
-        return -1i32;
-    }
-    if num_triangle_indices < 3usize * (num_points - 2usize) {
-        return -1i32;
-    }
-    if num_edges != num_triangle_indices {
-        return -1i32;
-    }
-    if c_points == ptr::null() || c_triangle_indices == ptr::null_mut() || c_edges == ptr::null_mut() {
-        return -2i32;
-    }
-
-    unsafe {
-        let points_slice = std::slice::from_raw_parts(c_points, num_points*2);
-        let mut points = Vec::with_capacity(num_points);
-        for i in 0..num_points {
-            points.push((points_slice[2*i], points_slice[2*i+1]));
-        }
-
-        match triangulate(&points) {
-            Ok(triangle_indices) => {
-                let edges = find_edges(&triangle_indices, num_points);
-                let triangle_slice = std::slice::from_raw_parts_mut(c_triangle_indices, num_triangle_indices);
-                let edge_slice = std::slice::from_raw_parts_mut(c_edges, num_edges);
-                for i in 0..num_triangle_indices {
-                    triangle_slice[i] = triangle_indices[i];
-                    edge_slice[i] = if edges[i] { 1u8 } else { 08 }
-                }
-                0i32
-            },
-            Err(_) => -3i32
-        }
-    }
-}
+// extern crate libc;
+// 
+// use libc::size_t;
+// use libc::c_float;
+// use libc::c_uchar;
+// use std::ptr;
+// 
+// impl Zeroable for f32 {
+//     fn zero() -> f32 { 0.0f32 }
+// }
+// 
+// #[no_mangle]
+// pub extern "C" fn c_triangulate(num_points: size_t, c_points: *const c_float, 
+//                                 num_triangle_indices: size_t, c_triangle_indices: *mut size_t,
+//                                 num_edges: size_t, c_edges: *mut c_uchar) -> i32 {
+//     if num_points % 3usize != 0usize {
+//         return -1i32;
+//     }
+//     if num_triangle_indices < 3usize * (num_points - 2usize) {
+//         return -1i32;
+//     }
+//     if num_edges != num_triangle_indices {
+//         return -1i32;
+//     }
+//     if c_points == ptr::null() || c_triangle_indices == ptr::null_mut() || c_edges == ptr::null_mut() {
+//         return -2i32;
+//     }
+// 
+//     unsafe {
+//         let points_slice = std::slice::from_raw_parts(c_points, num_points*2);
+//         let mut points = Vec::with_capacity(num_points);
+//         for i in 0..num_points {
+//             points.push((points_slice[2*i], points_slice[2*i+1]));
+//         }
+// 
+//         match triangulate(&points) {
+//             Ok(triangle_indices) => {
+//                 let edges = find_edges(&triangle_indices, num_points);
+//                 let triangle_slice = std::slice::from_raw_parts_mut(c_triangle_indices, num_triangle_indices);
+//                 let edge_slice = std::slice::from_raw_parts_mut(c_edges, num_edges);
+//                 for i in 0..num_triangle_indices {
+//                     triangle_slice[i] = triangle_indices[i];
+//                     edge_slice[i] = if edges[i] { 1u8 } else { 08 }
+//                 }
+//                 0i32
+//             },
+//             Err(_) => -3i32
+//         }
+//     }
+// }
 
 #[cfg(test)]
 mod tests {
@@ -338,11 +365,7 @@ mod tests {
     use super::LineCompare;
     use super::find_edges;
 
-    impl Zeroable for f32 {
-        fn zero() -> f32 { 0.0f32 }
-    }
-
-    #[test]
+    //#[test]
     fn test_compare_to_line() {
         let v0 = (0.1f32,  0.1f32);
         let v1 = (0.5f32, 0.5f32);
