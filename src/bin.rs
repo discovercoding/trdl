@@ -133,7 +133,7 @@ fn make_shapes(sqrt_size: usize) -> (Vec<GLfloat>, Vec<GLfloat>, Vec<GLfloat>, V
 
     let mut depth_idx = 0;
     for i in 0..sqrt_size {
-        let delta_x = ((2*i) as GLfloat) / (28 as GLfloat) - (1.0 as GLfloat);
+        let delta_x = ((2*i) as GLfloat) / (80 as GLfloat) - (1.0 as GLfloat);
         for j in 0..sqrt_size {
             let delta_y = (1.0 as GLfloat) - ((2*j) as GLfloat) / (85 as GLfloat);
             let depth = (1.0 as GLfloat) - ((2 * depth_idx) as GLfloat) / (num_shapes as GLfloat);
@@ -298,7 +298,7 @@ fn main() {
 
             // Draw a triangle from the 3 vertices
             gl::BindVertexArray(vao_handle);
-            gl::DrawArrays(gl::PATCHES, 0, num_tris as GLint);
+            gl::DrawArrays(gl::PATCHES, 0, (num_tris * 3) as GLint);
 
             window.swap_buffers().unwrap();
 
