@@ -155,7 +155,6 @@ fn fill_sets<P, U>(points: &Vec<P>, vertices: &mut Vec<Vertex>) -> (HashSet<usiz
                 v.is_convex = true;
             }
             VertexType::Ear => {
-                println!("adding {} to ear list", v.index);
                 v.is_convex = true;
                 v.is_ear = true;
                 ear_set.insert(v.index);
@@ -203,7 +202,6 @@ pub fn triangulate<P, U>(points: &Vec<P>) -> Result<Vec<usize>, &'static str>
         };
 
         ear_set.remove(&ear_index);
-        println!("removing {} from ear list", ear_index);
 
         let prev_index;
         let next_index;
@@ -224,7 +222,6 @@ pub fn triangulate<P, U>(points: &Vec<P>) -> Result<Vec<usize>, &'static str>
             let prev_index;
             let next_index;
             {
-                println!("removing last ear {}", ear_index);
                 let vertex = &vertices[ear_index];
                 prev_index = vertex.prev_index;
                 next_index = vertex.next_index;
@@ -239,7 +236,6 @@ pub fn triangulate<P, U>(points: &Vec<P>) -> Result<Vec<usize>, &'static str>
                 if !is_ear(&points, &reflex_set, v_prev) {
                     v_prev.is_ear = false;
                     ear_set.remove(&prev_index);
-                    println!("{} is no longer an ear", prev_index);
                 }
             } else {
                 if is_convex(&points[prev_index], &points[v_prev.prev_index], &points[v_prev.next_index]) {
@@ -250,7 +246,6 @@ pub fn triangulate<P, U>(points: &Vec<P>) -> Result<Vec<usize>, &'static str>
                     
                     if is_ear(&points, &reflex_set, v_prev) {
                         ear_set.insert(prev_index);
-                        println!("{} is now an ear", prev_index);
                     }
                 }
             }
@@ -262,7 +257,6 @@ pub fn triangulate<P, U>(points: &Vec<P>) -> Result<Vec<usize>, &'static str>
                 if !is_ear(&points, &reflex_set, v_next) {
                     v_next.is_ear = false;
                     ear_set.remove(&next_index);
-                    println!("{} is no longer an ear", next_index);
                 }
             } else {
                 if is_convex(&points[next_index], &points[v_next.prev_index], &points[v_next.next_index]) {
@@ -273,7 +267,6 @@ pub fn triangulate<P, U>(points: &Vec<P>) -> Result<Vec<usize>, &'static str>
                     
                     if is_ear(&points, &reflex_set, v_next) {
                         ear_set.insert(next_index);
-                        println!("{} is now an ear", next_index);
                     }
                 }
             }
@@ -281,29 +274,8 @@ pub fn triangulate<P, U>(points: &Vec<P>) -> Result<Vec<usize>, &'static str>
     }
 }
 
-fn triangle_edges(v0: usize, v1: usize, v2: usize, max: usize) -> (bool, bool, bool) { 
-    let e0 = v1 == 0 && v0 == max || (v1 > v0 && v1 - v0 == 1);
-    println!("{} -> {}: {}", v0, v1, e0);
-    let e1 = v2 == 0 && v1 == max || (v2 > v1 && v2 - v1 == 1);
-    println!("{} -> {}: {}", v1, v2, e1);
-    let e2 = v0 == 0 && v2 == max || (v0 > v2 && v0 - v2 == 1);
-    println!("{} -> {}: {}", v2, v0, e2);
-    (e0, e1, e2)
-}
+
  
-pub fn find_edges(triangles: &Vec<usize>, max: usize) -> Vec<bool> {
-    let n = triangles.len();
-    let mut edges = Vec::with_capacity(n);
-
-    for i in 0..(n/3) {
-        let e = triangle_edges(triangles[i*3], triangles[i*3+1], triangles[i*3+2], max);
-        edges.push(e.0);
-        edges.push(e.1);
-        edges.push(e.2);
-    }
-    edges
-}
-
 // extern crate libc;
 // 
 // use libc::size_t;
@@ -413,18 +385,14 @@ mod tests {
 
     fn is_expected_triangle(v0: &usize, v1: &usize, v2: &usize, expected: &(usize, usize, usize)) -> bool {
         if *v0 == expected.0 && *v1 == expected.1 && *v2 == expected.2 {
-            println!("{}, {}, {} is expected triangle", *v0, *v1, *v2);
             return true;
         }
         if *v1 == expected.0 && *v2 == expected.1 && *v0 == expected.2 {
-            println!("{}, {}, {} is expected triangle", *v0, *v1, *v2);
             return true;
         }
         if *v2 == expected.0 && *v0 == expected.1 && *v1 == expected.2 {
-            println!("{}, {}, {} is expected triangle", *v0, *v1, *v2);
             return true;
         }
-        println!("{}, {}, {}, did not match {}, {}, {}", *v0, *v1, *v2, expected.0, expected.1, expected.2);
         false
     }
 

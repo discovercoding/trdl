@@ -1,6 +1,7 @@
 extern crate gl;
 extern crate glutin;
 extern crate trdl;
+extern crate time;
 
 use std::mem;
 use std::ffi::CString;
@@ -8,10 +9,11 @@ use std::ptr;
 use std::io;
 use std::io::prelude::*;
 use std::fs::File;
+use std::collections::hash_map::HashMap;
 use gl::types::*;
 use trdl::drawing_gl::shader::*;
 use trdl::triangulation::triangulate;
-use trdl::triangulation::find_edges;
+use time::precise_time_s;
 
 fn read_file(file_name: &str) -> io::Result<String> {
     let mut contents = String::new();
@@ -29,84 +31,130 @@ fn bezier_line_control_points(first: (GLfloat, GLfloat), last: (GLfloat, GLfloat
     (v1, (v1.0 + dx, v1.1 + dy))
 }
 
-fn make_shape() -> ([GLfloat; 27], [GLfloat; 18], [GLfloat; 18], [GLfloat; 27], [GLuint; 9]) {
-    let a0  = (0.15 as GLfloat, 0.30 as GLfloat);
-    let ab1 = (0.05 as GLfloat, 0.30 as GLfloat);
-    let ab2 = (0.00 as GLfloat, 0.25 as GLfloat);
-    let b0  = (0.05 as GLfloat, 0.20 as GLfloat);
-    let c0  = (0.20 as GLfloat, 0.00 as GLfloat);
-    let cd1 = (0.20 as GLfloat, 0.05 as GLfloat);
-    let cd2 = (0.35 as GLfloat, 0.05 as GLfloat);
-    let d0  = (0.30 as GLfloat, 0.10 as GLfloat);
-    let e0  = (0.15 as GLfloat, 0.15 as GLfloat);
+fn handle_vertex_pair(polygon: &Vec<(GLfloat, GLfloat)>, i0: usize, i1: usize, depth: GLfloat,
+        control_point_map: &mut HashMap<(usize, usize), ((GLfloat, GLfloat), (GLfloat, GLfloat))>,
+        vs: &mut Vec<GLfloat>, cp1s: &mut Vec<GLfloat>, cp2s: &mut Vec<GLfloat>) {
+    let v0 = polygon[i0];
+    let v1 = polygon[i1];
+    vs.push(v0.0);
+    vs.push(v0.1);
+    vs.push(depth);
+    let cp1;
+    let cp2;
+    let mut insert = false;
+    if let Some(cp12) = control_point_map.get(&(i0, i1)) {
+        cp1 = cp12.0;
+        cp2 = cp12.1;
+    } else {
+        let (a, b) = bezier_line_control_points(v0, v1);
+        cp1 = a;
+        cp2 = b;
+        insert = true;
+    }
+    if insert { control_point_map.insert((i0, i1), (cp1, cp2)); }
+    
+    cp1s.push(cp1.0);
+    cp1s.push(cp1.1);
+    cp2s.push(cp2.0);
+    cp2s.push(cp2.1);
 
-    let (bc1, bc2) = bezier_line_control_points(b0, c0);
-    let (be1, be2) = bezier_line_control_points(b0, e0);
-    let (ce1, ce2) = bezier_line_control_points(c0, e0);
-    let (de1, de2) = bezier_line_control_points(d0, e0);
-    let (ea1, ea2) = bezier_line_control_points(e0, a0);
+}
 
-    let polygon = vec![a0, b0, c0, d0, e0];
+fn push_colors(cs: &mut Vec<GLfloat>) {
+    cs.push(1.0 as GLfloat);
+    cs.push(1.0 as GLfloat);
+    cs.push(0.0 as GLfloat);
+    
+    cs.push(1.0 as GLfloat);
+    cs.push(1.0 as GLfloat);
+    cs.push(0.0 as GLfloat);
+
+    cs.push(1.0 as GLfloat);
+    cs.push(1.0 as GLfloat);
+    cs.push(0.0 as GLfloat);
+}
+
+fn triangle_edges(i0: usize, i1: usize, i2: usize, max: usize) -> (bool, bool, bool) { 
+    let e2 = i1 == 0 && i0 == max || (i1 > i0 && i1 - i0 == 1);
+    let e0 = i2 == 0 && i1 == max || (i2 > i1 && i2 - i1 == 1);
+    let e1 = i0 == 0 && i2 == max || (i2 > i2 && i0 - i2 == 1);
+    (e0, e1, e2)
+}
+
+fn make_shape(off_x: GLfloat, off_y: GLfloat, depth: GLfloat) -> (Vec<GLfloat>, Vec<GLfloat>, Vec<GLfloat>, Vec<GLfloat>, Vec<GLuint>) {
+    let a0  = (0.15 as GLfloat + off_x, -0.30 as GLfloat + off_y);
+    let ab2 = (0.05 as GLfloat + off_x, -0.30 as GLfloat + off_y);
+    let ab1 = (0.00 as GLfloat + off_x, -0.25 as GLfloat + off_y);
+    let b0  = (0.05 as GLfloat + off_x, -0.20 as GLfloat + off_y);
+    let c0  = (0.20 as GLfloat + off_x, -0.00 as GLfloat + off_y);
+    let cd2 = (0.20 as GLfloat + off_x, -0.05 as GLfloat + off_y);
+    let cd1 = (0.35 as GLfloat + off_x, -0.05 as GLfloat + off_y);
+    let d0  = (0.30 as GLfloat + off_x, -0.10 as GLfloat + off_y);
+    let e0  = (0.15 as GLfloat + off_x, -0.15 as GLfloat + off_y);
+
+    let mut control_point_map = HashMap::new();
+    control_point_map.insert((3, 4), (ab1, ab2));
+    control_point_map.insert((1, 2), (cd1, cd2));
+
+    let polygon = vec![e0, d0, c0, b0, a0];
     let indices = triangulate(&polygon).unwrap();
-    let edges = find_edges(&indices, polygon.len());
+    let num_tris = indices.len() / 3;
 
-    ([a0.0, a0.1, 0.0 as GLfloat,
-      b0.0, b0.1, 0.0 as GLfloat,
-      e0.0, e0.1, 0.0 as GLfloat,
-      b0.0, b0.1, 0.0 as GLfloat,
-      c0.0, c0.1, 0.0 as GLfloat,
-      e0.0, e0.1, 0.0 as GLfloat,
-      e0.0, e0.1, 0.0 as GLfloat,
-      c0.0, c0.1, 0.0 as GLfloat,
-      d0.0, d0.1, 0.0 as GLfloat],
+    let mut vs = Vec::with_capacity(3*num_tris);
+    let mut cp1s = Vec::with_capacity(2*num_tris);
+    let mut cp2s = Vec::with_capacity(2*num_tris);
+    let mut cs = Vec::with_capacity(3*num_tris);
+    let mut es = Vec::with_capacity(num_tris);
+    let num_verts = polygon.len();
+    for t in 0..num_tris {
+        let ti0 = 3*t;
+        let ti1 = ti0+1;
+        let ti2 = ti1+1;
+        handle_vertex_pair(&polygon, indices[ti0], indices[ti1], depth, &mut control_point_map, &mut vs, &mut cp1s, &mut cp2s);
+        handle_vertex_pair(&polygon, indices[ti1], indices[ti2], depth, &mut control_point_map, &mut vs, &mut cp1s, &mut cp2s);
+        handle_vertex_pair(&polygon, indices[ti2], indices[ti0], depth, &mut control_point_map, &mut vs, &mut cp1s, &mut cp2s);
+        push_colors(&mut cs);
+        let (e0, e1, e2) = triangle_edges(ti0, ti1, ti2, num_verts);
+        es.push(e0 as GLuint);
+        es.push(e1 as GLuint);
+        es.push(e2 as GLuint);
+     }
+     (vs, cp1s, cp2s, cs, es)
+}
 
-     [ab1.0, ab1.1,
-      be1.0, be1.1,
-      ea1.0, ea1.1,
-      bc1.0, bc1.1,
-      ce1.0, ce1.1,
-      be2.0, be2.1,
-      ce2.0, ce2.1,
-      cd1.0, cd1.1,
-      de1.0, de1.1],
+fn make_shapes(sqrt_size: usize) -> (Vec<GLfloat>, Vec<GLfloat>, Vec<GLfloat>, Vec<GLfloat>, Vec<GLuint>) {
+    let num_shapes = sqrt_size * sqrt_size;
 
-     [ab2.0, ab2.1,
-      be2.0, be2.1,
-      ea2.0, ea2.1,
-      bc2.0, bc2.1,
-      ce2.0, ce2.1,
-      be1.0, be1.1,
-      ce1.0, ce1.1,
-      cd2.0, cd2.1,
-      de2.0, de2.1],
+    let mut vertex_vec = Vec::new();
+    let mut cp1_vec = Vec::new();
+    let mut cp2_vec = Vec::new();
+    let mut color_vec = Vec::new();
+    let mut edge_vec = Vec::new();
 
-     [1.0 as GLfloat, 1.0 as GLfloat, 0.0 as GLfloat,
-      1.0 as GLfloat, 1.0 as GLfloat, 0.0 as GLfloat,
-      1.0 as GLfloat, 1.0 as GLfloat, 0.0 as GLfloat,
-      1.0 as GLfloat, 1.0 as GLfloat, 0.0 as GLfloat,
-      1.0 as GLfloat, 1.0 as GLfloat, 0.0 as GLfloat,
-      1.0 as GLfloat, 1.0 as GLfloat, 0.0 as GLfloat,
-      1.0 as GLfloat, 1.0 as GLfloat, 0.0 as GLfloat,
-      1.0 as GLfloat, 1.0 as GLfloat, 0.0 as GLfloat,
-      1.0 as GLfloat, 1.0 as GLfloat, 0.0 as GLfloat],
-      
-     [0 as GLuint,
-      1 as GLuint,
-      1 as GLuint,
-      0 as GLuint,
-      0 as GLuint,
-      1 as GLuint,
-      1 as GLuint,
-      1 as GLuint,
-      0 as GLuint])
+    let mut depth_idx = 0;
+    for i in 0..sqrt_size {
+        let delta_x = ((2*i) as GLfloat) / (28 as GLfloat) - (1.0 as GLfloat);
+        for j in 0..sqrt_size {
+            let delta_y = (1.0 as GLfloat) - ((2*j) as GLfloat) / (85 as GLfloat);
+            let depth = (1.0 as GLfloat) - ((2 * depth_idx) as GLfloat) / (num_shapes as GLfloat);
+            depth_idx += 1;
+
+             let (mut vs, mut cp1s, mut cp2s, mut cs, mut es) = make_shape(delta_x, delta_y, depth);
+            //let (mut vs, mut cp1s, mut cp2s, mut cs, mut es) = make_shape(0.0 as GLfloat, 0.0 as GLfloat, 0.0 as GLfloat);
+            vertex_vec.append(&mut vs);
+            cp1_vec.append(&mut cp1s);
+            cp2_vec.append(&mut cp2s);
+            color_vec.append(&mut cs);
+            edge_vec.append(&mut es);
+        }
+    }
+    (vertex_vec, cp1_vec, cp2_vec, color_vec, edge_vec)
 }
 
 fn main() {
     let window = glutin::Window::new().unwrap();
     unsafe { window.make_current().unwrap() };
     gl::load_with(|symbol| window.get_proc_address(symbol) as *const _);
-
-    let (position, control_1, control_2, color, edge) = make_shape();
 
     let vertex_shader_code = read_file("vertex_shader.glsl").unwrap();
     let tess_control_shader_code = read_file("tess_control_shader.glsl").unwrap();
@@ -125,6 +173,11 @@ fn main() {
     }
     let program_id = program.get_program_id();
 
+    let begin = precise_time_s();
+
+    let (position, control_1, control_2, color, edge) = make_shapes(70);
+    let num_tris = position.len() / 9;
+
     unsafe {
 
         let c_str = CString::new("in_position").unwrap();
@@ -137,9 +190,6 @@ fn main() {
         let in_color = gl::GetAttribLocation(program_id, c_str.as_ptr());
         let c_str = CString::new("in_edge").unwrap();
         let in_edge = gl::GetAttribLocation(program_id, c_str.as_ptr());
-
-        println!("program_id={}, in_position={}, in_control_1={}, in_control_2={}, in_color={}, in_edge={}",
-            program_id, in_position, in_control_1, in_control_2, in_color, in_edge);
 
         let mut vao_handle = 0 as GLuint;
 
@@ -154,11 +204,7 @@ fn main() {
         let color_vbo = vbo_handles[3];
         let edge_vbo = vbo_handles[4];
 
-        println!("position_vbo={}, control_1_vbo={}, control_2_vbo={}, color_vbo={}, edge_vbo={}",
-            position_vbo, control_1_vbo, control_2_vbo, color_vbo, edge_vbo);
-
         // Populate the position buffer
-        println!("position[0..2] = [{}, {}, {}], len = {}", position[0], position[1], position[2], position.len()); 
         gl::BindBuffer(gl::ARRAY_BUFFER, position_vbo);
         gl::BufferData(gl::ARRAY_BUFFER,
                        (position.len() * mem::size_of::<GLfloat>()) as GLsizeiptr,
@@ -166,7 +212,6 @@ fn main() {
                        gl::STATIC_DRAW);
 
         // Populate the control points buffers
-        println!("control_1[0..2] = [{}, {}, {}], len = {}", control_1[0], control_1[1], control_1[2], control_1.len()); 
         gl::BindBuffer(gl::ARRAY_BUFFER, control_1_vbo);
         gl::BufferData(gl::ARRAY_BUFFER,
                        (control_1.len() * mem::size_of::<GLfloat>()) as GLsizeiptr,
@@ -174,7 +219,6 @@ fn main() {
                        gl::STATIC_DRAW);
 
         // Populate the control points buffers
-        println!("control_2[0..2] = [{}, {}, {}], len = {}", control_2[0], control_2[1], control_2[2], control_2.len()); 
         gl::BindBuffer(gl::ARRAY_BUFFER, control_2_vbo);
         gl::BufferData(gl::ARRAY_BUFFER,
                        (control_2.len() * mem::size_of::<GLfloat>()) as GLsizeiptr,
@@ -182,7 +226,6 @@ fn main() {
                        gl::STATIC_DRAW);
 
         // Populate color buffer
-        println!("color[0..2] = [{}, {}, {}], len = {}", color[0], color[1], color[2], color.len()); 
         gl::BindBuffer(gl::ARRAY_BUFFER, color_vbo);
         gl::BufferData(gl::ARRAY_BUFFER,
                        (color.len() * mem::size_of::<GLfloat>()) as GLsizeiptr,
@@ -190,7 +233,6 @@ fn main() {
                        gl::STATIC_DRAW);
 
         // Populate the edge buffer
-        println!("edge[0..2] = [{}, {}, {}], len = {}", edge[0], edge[1], edge[2], edge.len()); 
         gl::BindBuffer(gl::ARRAY_BUFFER, edge_vbo);
         gl::BufferData(gl::ARRAY_BUFFER,
                        (edge.len() * mem::size_of::<GLuint>()) as GLsizeiptr,
@@ -236,12 +278,10 @@ fn main() {
 
         if outer_tess_uniform >= 0 {
             gl::Uniform1i(outer_tess_uniform, 32);
-            println!("outer_tess good!");
         }
 
         if inner_tess_uniform >= 0 {
             gl::Uniform1i(inner_tess_uniform, 1);
-            println!("inner_tess good!");
         }
 
         gl::Enable(gl::DEPTH_TEST);
@@ -258,9 +298,12 @@ fn main() {
 
             // Draw a triangle from the 3 vertices
             gl::BindVertexArray(vao_handle);
-            gl::DrawArrays(gl::PATCHES, 0, 9);
+            gl::DrawArrays(gl::PATCHES, 0, num_tris as GLint);
 
             window.swap_buffers().unwrap();
+
+            let end = precise_time_s();
+            println!("elapsed seconds: {}", end - begin);
         }
 
         gl::DeleteBuffers(NUM_VBO, mem::transmute(&vbo_handles[0]));
