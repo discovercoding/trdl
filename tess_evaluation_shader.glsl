@@ -9,6 +9,9 @@ in vec3 tc_color[];
 out vec3 te_bary;
 out vec3 te_edge;
 out vec3 te_color;
+out vec2 te_tan_ab;
+out vec2 te_tan_bc;
+out vec2 te_tan_ca;
 
 void main() {
 
@@ -37,6 +40,12 @@ void main() {
               b*t*t_sq + 3*bc0*t_sq*u + 3*bc1*t*u_sq +
               c*u*u_sq + 3*ca0*u_sq*s + 3*ca1*u*s_sq
               + 6*ce*s*t*u);
+    // only valid if u is basically 0
+    te_tan_ab = vec2(3*s_sq*(ab0 - a) + 6*s*t*(ab1-ab0) + 3*t_sq*(b-ab1));
+    // only valid if s is basically 0
+    te_tan_bc = vec2(3*t_sq*(bc0 - b) + 6*t*u*(bc1-bc0) + 3*u_sq*(c-bc1));
+    // only valid if t is basically 0
+    te_tan_ca = vec2(3*u_sq*(ca0 - c) + 6*u*s*(ca1-ca0) + 3*s_sq*(a-ca1));
 
     gl_Position = vec4(pos, gl_in[0].gl_Position.z, 1.0);
     te_bary = vec3(s, t, u);

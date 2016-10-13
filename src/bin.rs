@@ -82,16 +82,26 @@ fn triangle_edges(i0: usize, i1: usize, i2: usize, max: usize) -> (bool, bool, b
 }
 
 fn make_shape(off_x: GLfloat, off_y: GLfloat, depth: GLfloat) -> (Vec<GLfloat>, Vec<GLfloat>, Vec<GLfloat>, Vec<GLfloat>, Vec<GLuint>) {
-    let a0  = (0.15 as GLfloat + off_x, -0.30 as GLfloat + off_y);
-    let ab2 = (0.05 as GLfloat + off_x, -0.30 as GLfloat + off_y);
-    let ab1 = (0.00 as GLfloat + off_x, -0.25 as GLfloat + off_y);
-    let b0  = (0.05 as GLfloat + off_x, -0.20 as GLfloat + off_y);
-    let c0  = (0.20 as GLfloat + off_x, -0.00 as GLfloat + off_y);
-    let cd2 = (0.20 as GLfloat + off_x, -0.05 as GLfloat + off_y);
-    let cd1 = (0.35 as GLfloat + off_x, -0.05 as GLfloat + off_y);
-    let d0  = (0.30 as GLfloat + off_x, -0.10 as GLfloat + off_y);
-    let e0  = (0.15 as GLfloat + off_x, -0.15 as GLfloat + off_y);
+    //let a0  = (0.15 as GLfloat + off_x, -0.30 as GLfloat + off_y);
+    //let ab2 = (0.05 as GLfloat + off_x, -0.30 as GLfloat + off_y);
+    //let ab1 = (0.00 as GLfloat + off_x, -0.25 as GLfloat + off_y);
+    //let b0  = (0.05 as GLfloat + off_x, -0.20 as GLfloat + off_y);
+    //let c0  = (0.20 as GLfloat + off_x, -0.00 as GLfloat + off_y);
+    //let cd2 = (0.20 as GLfloat + off_x, -0.05 as GLfloat + off_y);
+    //let cd1 = (0.35 as GLfloat + off_x, -0.05 as GLfloat + off_y);
+    //let d0  = (0.30 as GLfloat + off_x, -0.10 as GLfloat + off_y);
+    //let e0  = (0.15 as GLfloat + off_x, -0.15 as GLfloat + off_y);
 
+    let a0  = (1.5/2 as GLfloat + off_x, -3.0/2 as GLfloat + off_y);
+    let ab2 = (0.5/2 as GLfloat + off_x, -3.0/2 as GLfloat + off_y);
+    let ab1 = (0.0/2 as GLfloat + off_x, -2.5/2 as GLfloat + off_y);
+    let b0  = (0.5/2 as GLfloat + off_x, -2.0/2 as GLfloat + off_y);
+    let c0  = (2.0/2 as GLfloat + off_x, -0.0/2 as GLfloat + off_y);
+    let cd2 = (2.0/2 as GLfloat + off_x, -0.5/2 as GLfloat + off_y);
+    let cd1 = (3.5/2 as GLfloat + off_x, -0.5/2 as GLfloat + off_y);
+    let d0  = (3.0/2 as GLfloat + off_x, -1.0/2 as GLfloat + off_y);
+    let e0  = (1.5/2 as GLfloat + off_x, -1.5/2 as GLfloat + off_y);
+                
     let mut control_point_map = HashMap::new();
     control_point_map.insert((3, 4), (ab1, ab2));
     control_point_map.insert((1, 2), (cd1, cd2));
@@ -139,8 +149,7 @@ fn make_shapes(sqrt_size: usize) -> (Vec<GLfloat>, Vec<GLfloat>, Vec<GLfloat>, V
             let depth = (1.0 as GLfloat) - ((2 * depth_idx) as GLfloat) / (num_shapes as GLfloat);
             depth_idx += 1;
 
-             let (mut vs, mut cp1s, mut cp2s, mut cs, mut es) = make_shape(delta_x, delta_y, depth);
-            //let (mut vs, mut cp1s, mut cp2s, mut cs, mut es) = make_shape(0.0 as GLfloat, 0.0 as GLfloat, 0.0 as GLfloat);
+            let (mut vs, mut cp1s, mut cp2s, mut cs, mut es) = make_shape(delta_x, delta_y, depth);
             vertex_vec.append(&mut vs);
             cp1_vec.append(&mut cp1s);
             cp2_vec.append(&mut cp2s);
@@ -175,7 +184,7 @@ fn main() {
 
     let begin = precise_time_s();
 
-    let (position, control_1, control_2, color, edge) = make_shapes(70);
+    let (position, control_1, control_2, color, edge) = make_shapes(2);
     let num_tris = position.len() / 9;
 
     unsafe {
@@ -298,7 +307,7 @@ fn main() {
 
             // Draw a triangle from the 3 vertices
             gl::BindVertexArray(vao_handle);
-            gl::DrawArrays(gl::PATCHES, 0, (num_tris * 3) as GLint);
+            gl::DrawArrays(gl::PATCHES, 9, 9 as GLint);
 
             window.swap_buffers().unwrap();
 

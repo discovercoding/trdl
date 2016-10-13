@@ -124,10 +124,14 @@ impl<'a> ShaderProgramBuilder<'a> {
             if status == gl::FALSE as GLint {
                 let mut length = 0 as GLint;
                 gl::GetShaderiv(shader_id, gl::INFO_LOG_LENGTH, &mut length);
-                let mut message = Vec::with_capacity(length as usize);
+                println!("message length is {}", length);
+                let mut message = vec![0u8; length as usize];
                 gl::GetShaderInfoLog(shader_id, length, ptr::null_mut(), message.as_mut_ptr() as *mut GLchar);
                 let err = match String::from_utf8(message) {
-                    Ok(text) => ShaderError::CompileError(text),
+                    Ok(text) => {
+                        println!("err: '{}'", text);
+                        ShaderError::CompileError(text)
+                    },
                     Err(_) => ShaderError::InvalidCompileError
                 };
                 Err(err)
