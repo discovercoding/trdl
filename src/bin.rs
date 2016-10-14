@@ -15,6 +15,12 @@ use trdl::drawing_gl::shader::*;
 use trdl::triangulation::triangulate;
 use time::precise_time_s;
 
+// this just saves us from writing "as GLfloat" in common cases
+const ZERO:  GLfloat = 0.0 as GLfloat;
+const ONE:   GLfloat = 1.0 as GLfloat;
+const TWO:   GLfloat = 2.0 as GLfloat;
+const THREE: GLfloat = 3.0 as GLfloat;
+
 fn read_file(file_name: &str) -> io::Result<String> {
     let mut contents = String::new();
     let mut f = try!(File::open(file_name));
@@ -24,8 +30,8 @@ fn read_file(file_name: &str) -> io::Result<String> {
 
 fn bezier_line_control_points(first: (GLfloat, GLfloat), last: (GLfloat, GLfloat))-> 
         ((GLfloat, GLfloat), (GLfloat, GLfloat)) {
-    let dx = (last.0 - first.0) / 3.0 as GLfloat;
-    let dy = (last.1 - first.1) / 3.0 as GLfloat;
+    let dx = (last.0 - first.0) / THREE;
+    let dy = (last.1 - first.1) / THREE;
 
     let v1 = (first.0 + dx, first.1 + dy);
     (v1, (v1.0 + dx, v1.1 + dy))
@@ -61,17 +67,17 @@ fn handle_vertex_pair(polygon: &Vec<(GLfloat, GLfloat)>, i0: usize, i1: usize, d
 }
 
 fn push_colors(cs: &mut Vec<GLfloat>) {
-    cs.push(1.0 as GLfloat);
-    cs.push(1.0 as GLfloat);
-    cs.push(0.0 as GLfloat);
+    cs.push(ONE);
+    cs.push(ONE);
+    cs.push(ZERO);
     
-    cs.push(1.0 as GLfloat);
-    cs.push(1.0 as GLfloat);
-    cs.push(0.0 as GLfloat);
+    cs.push(ONE);
+    cs.push(ONE);
+    cs.push(ZERO);
 
-    cs.push(1.0 as GLfloat);
-    cs.push(1.0 as GLfloat);
-    cs.push(0.0 as GLfloat);
+    cs.push(ONE);
+    cs.push(ONE);
+    cs.push(ZERO);
 }
 
 fn triangle_edges(i0: usize, i1: usize, i2: usize, max: usize) -> (bool, bool, bool) { 
@@ -92,15 +98,15 @@ fn make_shape(off_x: GLfloat, off_y: GLfloat, depth: GLfloat) -> (Vec<GLfloat>, 
     //let d0  = (0.30 as GLfloat + off_x, -0.10 as GLfloat + off_y);
     //let e0  = (0.15 as GLfloat + off_x, -0.15 as GLfloat + off_y);
 
-    let a0  = (1.5/2 as GLfloat + off_x, -3.0/2 as GLfloat + off_y);
-    let ab2 = (0.5/2 as GLfloat + off_x, -3.0/2 as GLfloat + off_y);
-    let ab1 = (0.0/2 as GLfloat + off_x, -2.5/2 as GLfloat + off_y);
-    let b0  = (0.5/2 as GLfloat + off_x, -2.0/2 as GLfloat + off_y);
-    let c0  = (2.0/2 as GLfloat + off_x, -0.0/2 as GLfloat + off_y);
-    let cd2 = (2.0/2 as GLfloat + off_x, -0.5/2 as GLfloat + off_y);
-    let cd1 = (3.5/2 as GLfloat + off_x, -0.5/2 as GLfloat + off_y);
-    let d0  = (3.0/2 as GLfloat + off_x, -1.0/2 as GLfloat + off_y);
-    let e0  = (1.5/2 as GLfloat + off_x, -1.5/2 as GLfloat + off_y);
+    let a0  = (150 as GLfloat,   0 as GLfloat);
+    let ab2 = ( 50 as GLfloat,   0 as GLfloat);
+    let ab1 = (  0 as GLfloat,  50 as GLfloat);
+    let b0  = ( 50 as GLfloat, 100 as GLfloat);
+    let c0  = (200 as GLfloat, 300 as GLfloat);
+    let cd2 = (200 as GLfloat, 250 as GLfloat);
+    let cd1 = (350 as GLfloat, 250 as GLfloat);
+    let d0  = (300 as GLfloat, 200 as GLfloat);
+    let e0  = (150 as GLfloat, 150 as GLfloat);
                 
     let mut control_point_map = HashMap::new();
     control_point_map.insert((3, 4), (ab1, ab2));
@@ -143,10 +149,10 @@ fn make_shapes(sqrt_size: usize) -> (Vec<GLfloat>, Vec<GLfloat>, Vec<GLfloat>, V
 
     let mut depth_idx = 0;
     for i in 0..sqrt_size {
-        let delta_x = ((2*i) as GLfloat) / (80 as GLfloat) - (1.0 as GLfloat);
+        let delta_x = ((2*i) as GLfloat) / (80 as GLfloat) - ONE;
         for j in 0..sqrt_size {
-            let delta_y = (1.0 as GLfloat) - ((2*j) as GLfloat) / (85 as GLfloat);
-            let depth = (1.0 as GLfloat) - ((2 * depth_idx) as GLfloat) / (num_shapes as GLfloat);
+            let delta_y = ONE - ((2*j) as GLfloat) / (85 as GLfloat);
+            let depth = ONE - ((2 * depth_idx) as GLfloat) / (num_shapes as GLfloat);
             depth_idx += 1;
 
             let (mut vs, mut cp1s, mut cp2s, mut cs, mut es) = make_shape(delta_x, delta_y, depth);
@@ -161,7 +167,20 @@ fn make_shapes(sqrt_size: usize) -> (Vec<GLfloat>, Vec<GLfloat>, Vec<GLfloat>, V
 }
 
 fn main() {
-    let window = glutin::Window::new().unwrap();
+    let window_size = (1024, 768);
+    let window = 
+        glutin::WindowBuilder::new().
+        with_dimensions(window_size.0, window_size.1).
+        with_title("TRDL Test").
+        build().unwrap();
+
+    let ortho_proj = [
+        TWO / window_size.0 as GLfloat,  ZERO, ZERO, ZERO,
+        ZERO, TWO / window_size.1 as GLfloat, ZERO, ZERO,
+        ZERO, ZERO, ONE, ZERO,
+        -ONE, -ONE, ZERO, ONE
+    ];
+
     unsafe { window.make_current().unwrap() };
     gl::load_with(|symbol| window.get_proc_address(symbol) as *const _);
 
@@ -282,6 +301,8 @@ fn main() {
         let outer_tess_uniform = gl::GetUniformLocation(program_id, c_str.as_ptr());
         let c_str = CString::new("inner_tess".as_bytes()).unwrap();
         let inner_tess_uniform = gl::GetUniformLocation(program_id, c_str.as_ptr());
+        let c_str = CString::new("projection".as_bytes()).unwrap();
+        let projection_uniform = gl::GetUniformLocation(program_id, c_str.as_ptr());
 
         gl::UseProgram(program_id);
 
@@ -291,6 +312,10 @@ fn main() {
 
         if inner_tess_uniform >= 0 {
             gl::Uniform1i(inner_tess_uniform, 1);
+        }
+
+        if projection_uniform >= 0 {
+            gl::UniformMatrix4fv(projection_uniform, 1, gl::FALSE as GLboolean, mem::transmute(&ortho_proj[0]));
         }
 
         gl::Enable(gl::DEPTH_TEST);
