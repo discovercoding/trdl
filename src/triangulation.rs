@@ -1,53 +1,7 @@
-    // module for triangulating a simple polygon using ear clipping
+// module for triangulating a simple polygon using ear clipping
 
 use std::collections::HashSet;
-use std::fmt;
-use std::ops::{Mul, Sub};
-
-pub trait Zeroable {
-    fn zero() -> Self;
-}
-
-impl Zeroable for f32 {
-    fn zero() -> f32 { 0.0f32 }
-}
-
-impl Zeroable for f64 {
-    fn zero() -> f64 { 0.0f64 }
-}
-
-impl Zeroable for i32 {
-    fn zero() -> i32 { 0i32 }
-}
-
-impl Zeroable for i16 {
-    fn zero() -> i16 { 0i16 }
-}
-
-impl Zeroable for isize {
-    fn zero() -> isize { 0isize }
-}
-
-pub trait Point {
-    type T: PartialOrd + PartialEq + Sub + Mul + Zeroable + fmt::Display;
-    fn get_x(&self) -> Self::T;
-    fn get_y(&self) -> Self::T;
-}
-
-impl<U> fmt::Display for Point<T=U> 
-        where U: PartialOrd + PartialEq + Sub + Mul + Zeroable + fmt::Display {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "({}, {})", self.get_x(), self.get_y())
-    }
-}
-
-impl<U> Point for (U, U) 
-        where U: PartialOrd + PartialEq + Sub + Mul + Zeroable + fmt::Display + Copy {
-    type T = U;
-    fn get_x(&self) -> U { self.0 }
-    fn get_y(&self) -> U { self.1 }
-}
-
+use super::TrdlError;
 
 #[derive(Debug, PartialEq)]
 struct Vertex {
@@ -59,7 +13,8 @@ struct Vertex {
 }
 impl Vertex {
     fn new(index: usize, prev_index: usize, next_index: usize) -> Vertex {
-        Vertex { index: index, prev_index: prev_index, next_index: next_index, is_convex: false, is_ear: false }
+        Vertex { index: index, prev_index: prev_index, next_index: next_index,
+                 is_convex: false, is_ear: false }
     }
 }
 
@@ -68,31 +23,35 @@ enum LineCompare {
     Left, Right, On
 }
 
-fn compare_to_line<P, U>(v_test: &P, v_prev: &P, v_next: &P) -> LineCompare 
-    where P :Point<T=U>, U: Mul<Output=U> + Sub<Output=U> + Zeroable + PartialOrd + PartialEq + fmt::Display {
-    let val = (v_test.get_x() - v_prev.get_x())*(v_next.get_y() - v_prev.get_y()) - 
-              (v_test.get_y() - v_prev.get_y())*(v_next.get_x() - v_prev.get_x());
-    let zero = U::zero();
-    if val < zero { LineCompare::Left } else if val > zero { LineCompare::Right } else { LineCompare::On }
+fn compare_to_line(v_test: &(f32, f32),
+                   v_prev: &(f32, f32), v_next: &(f32, f32)) -> LineCompare {
+    let val = (v_test.0 - v_prev.0)*(v_next.1 - v_prev.1) -
+              (v_test.1 - v_prev.1)*(v_next.0 - v_prev.0);
+    if val < 0.0f32 {
+        LineCompare::Left
+    } else if val > 0.0f32 {
+        LineCompare::Right
+    } else {
+        LineCompare::On
+    }
 }
 
-fn is_convex<P, U>(v_test: &P, v_prev: &P, v_next: &P) -> bool 
-        where P: Point<T=U>, U: Mul<Output=U>, U: Sub<Output=U>, U: PartialOrd + PartialEq + Sub + Mul + Zeroable + fmt::Display {
+fn is_convex(v_test: &(f32, f32),
+             v_prev: &(f32, f32), v_next: &(f32, f32)) -> bool {
     // point is convex if right of line made by prev->next
     compare_to_line(v_test, v_prev, v_next) == LineCompare::Right
 }
 
-fn is_in_triangle<P, U>(v_test: &P, v0: &P, v1: &P, v2: &P) -> bool 
-        where P: Point<T=U>, U: Mul<Output=U>, U: Sub<Output=U>, U: PartialOrd + PartialEq + Sub + Mul + Zeroable + fmt::Display {
-    if compare_to_line(v_test, v0, v1) != LineCompare::Left { return false; }
+fn is_in_triangle(v_test: &(f32, f32), v0: &(f32, f32),
+                  v1: &(f32, f32), v2: &(f32, f32)) -> bool {
+if compare_to_line(v_test, v0, v1) != LineCompare::Left { return false; }
     if compare_to_line(v_test, v1, v2) != LineCompare::Left { return false; }
     if compare_to_line(v_test, v2, v0) != LineCompare::Left { return false; }
     true
 }
 
 // note: this function assumes v_test is convex!
-fn is_ear<P, U>(points: &Vec<P>, reflex_set: &HashSet<usize>, v_test: &Vertex) -> bool 
-        where P: Point<T=U>, U: Mul<Output=U>, U: Sub<Output=U>, U: PartialOrd + PartialEq + Sub + Mul + Zeroable + fmt::Display {
+fn is_ear(points: &Vec<(f32, f32)>, reflex_set: &HashSet<usize>, v_test: &Vertex) -> bool {
     for r in reflex_set {
         if *r == v_test.prev_index || *r == v_test.next_index {
             continue;
@@ -124,8 +83,8 @@ enum VertexType {
     Ear
 }
 
-fn classify_vertex<P, U>(points: &Vec<P>, v_test: &mut Vertex, reflex_set: &HashSet<usize>) -> VertexType
-        where P: Point<T=U>, U: Mul<Output=U>, U: Sub<Output=U>, U: PartialOrd + PartialEq + Sub + Mul + Zeroable + fmt::Display {
+fn classify_vertex(points: &Vec<(f32, f32)>, v_test: &mut Vertex,
+                   reflex_set: &HashSet<usize>) -> VertexType {
     if is_convex(&points[v_test.index], &points[v_test.prev_index], &points[v_test.next_index]) {
         if is_ear(&points, reflex_set, &v_test) {
              return VertexType::Ear;
@@ -137,8 +96,8 @@ fn classify_vertex<P, U>(points: &Vec<P>, v_test: &mut Vertex, reflex_set: &Hash
     }
 }
 
-fn fill_sets<P, U>(points: &Vec<P>, vertices: &mut Vec<Vertex>) -> (HashSet<usize>, HashSet<usize>)
-        where P: Point<T=U>, U: Mul<Output=U>, U: Sub<Output=U>, U: PartialOrd + PartialEq + Sub + Mul + Zeroable + fmt::Display {
+fn fill_sets(points: &Vec<(f32, f32)>,
+             vertices: &mut Vec<Vertex>) -> (HashSet<usize>, HashSet<usize>) {
     let mut ear_set = HashSet::new();
     let mut reflex_set = HashSet::new();
 
@@ -161,12 +120,10 @@ fn fill_sets<P, U>(points: &Vec<P>, vertices: &mut Vec<Vertex>) -> (HashSet<usiz
             }
         }
     }
-    
     (ear_set, reflex_set)
 }
 
 fn remove_vertex(vertices: &mut Vec<Vertex>, i_test: usize) {
-
     let prev_index = vertices[i_test].prev_index;
     let next_index = vertices[i_test].next_index;
     vertices[prev_index].next_index = next_index;
@@ -179,14 +136,13 @@ fn push_triangle(triangles: &mut Vec<usize>, i_test: usize, i_prev: usize, i_nex
     triangles.push(i_next);
 }
 
-pub fn triangulate<P, U>(points: &Vec<P>) -> Result<Vec<usize>, &'static str>
-         where P: Point<T=U>, U: Mul<Output=U>, U: Sub<Output=U>, U: PartialOrd + PartialEq + Sub + Mul + Zeroable + fmt::Display {
+pub fn triangulate(points: &Vec<(f32, f32)>) -> Result<Vec<usize>, TrdlError> {
     let mut n = points.len();
     if n < 4 {
         if n == 3 {
             return Ok(vec![0, 1, 2]);
         }  else {
-            return Err("Not enough vertices to triangulate");
+            return Err(TrdlError::NotEnoughVertices);
         }
     }
 
@@ -198,7 +154,7 @@ pub fn triangulate<P, U>(points: &Vec<P>) -> Result<Vec<usize>, &'static str>
     loop {
         let ear_index = match ear_set.iter().next() {
             Some(i) => *i,
-            None => return Err("Expected an ear in the ear set but found None")
+            None => return Err(TrdlError::NonSimplePolygon)
         };
 
         ear_set.remove(&ear_index);
@@ -217,7 +173,7 @@ pub fn triangulate<P, U>(points: &Vec<P>) -> Result<Vec<usize>, &'static str>
         if n == 3 {
             let ear_index = match ear_set.iter().next() {
                 Some(i) => *i,
-                None => return Err("Expected an ear in the ear set but found None")
+                None => return Err(TrdlError::NonSimplePolygon)
             };
             let prev_index;
             let next_index;
@@ -238,7 +194,8 @@ pub fn triangulate<P, U>(points: &Vec<P>) -> Result<Vec<usize>, &'static str>
                     ear_set.remove(&prev_index);
                 }
             } else {
-                if is_convex(&points[prev_index], &points[v_prev.prev_index], &points[v_prev.next_index]) {
+                if is_convex(&points[prev_index], &points[v_prev.prev_index],
+                             &points[v_prev.next_index]) {
                     if !v_prev.is_convex {
                         v_prev.is_convex = true;
                         reflex_set.remove(&prev_index);
@@ -254,18 +211,19 @@ pub fn triangulate<P, U>(points: &Vec<P>) -> Result<Vec<usize>, &'static str>
         {
             let ref mut v_next = vertices[next_index];
             if v_next.is_ear {
-                if !is_ear(&points, &reflex_set, v_next) {
+                if !is_ear(points, &reflex_set, v_next) {
                     v_next.is_ear = false;
                     ear_set.remove(&next_index);
                 }
             } else {
-                if is_convex(&points[next_index], &points[v_next.prev_index], &points[v_next.next_index]) {
+                if is_convex(&points[next_index], &points[v_next.prev_index],
+                             &points[v_next.next_index]) {
                     if !v_next.is_convex {
                         v_next.is_convex = true;
                         reflex_set.remove(&next_index);
                     }
                     
-                    if is_ear(&points, &reflex_set, v_next) {
+                    if is_ear(points, &reflex_set, v_next) {
                         ear_set.insert(next_index);
                     }
                 }
@@ -274,68 +232,13 @@ pub fn triangulate<P, U>(points: &Vec<P>) -> Result<Vec<usize>, &'static str>
     }
 }
 
-
- 
-// extern crate libc;
-// 
-// use libc::size_t;
-// use libc::c_float;
-// use libc::c_uchar;
-// use std::ptr;
-// 
-// impl Zeroable for f32 {
-//     fn zero() -> f32 { 0.0f32 }
-// }
-// 
-// #[no_mangle]
-// pub extern "C" fn c_triangulate(num_points: size_t, c_points: *const c_float, 
-//                                 num_triangle_indices: size_t, c_triangle_indices: *mut size_t,
-//                                 num_edges: size_t, c_edges: *mut c_uchar) -> i32 {
-//     if num_points % 3usize != 0usize {
-//         return -1i32;
-//     }
-//     if num_triangle_indices < 3usize * (num_points - 2usize) {
-//         return -1i32;
-//     }
-//     if num_edges != num_triangle_indices {
-//         return -1i32;
-//     }
-//     if c_points == ptr::null() || c_triangle_indices == ptr::null_mut() || c_edges == ptr::null_mut() {
-//         return -2i32;
-//     }
-// 
-//     unsafe {
-//         let points_slice = std::slice::from_raw_parts(c_points, num_points*2);
-//         let mut points = Vec::with_capacity(num_points);
-//         for i in 0..num_points {
-//             points.push((points_slice[2*i], points_slice[2*i+1]));
-//         }
-// 
-//         match triangulate(&points) {
-//             Ok(triangle_indices) => {
-//                 let edges = find_edges(&triangle_indices, num_points);
-//                 let triangle_slice = std::slice::from_raw_parts_mut(c_triangle_indices, num_triangle_indices);
-//                 let edge_slice = std::slice::from_raw_parts_mut(c_edges, num_edges);
-//                 for i in 0..num_triangle_indices {
-//                     triangle_slice[i] = triangle_indices[i];
-//                     edge_slice[i] = if edges[i] { 1u8 } else { 08 }
-//                 }
-//                 0i32
-//             },
-//             Err(_) => -3i32
-//         }
-//     }
-// }
-
 #[cfg(test)]
 mod tests {
-    use super::Zeroable;
     use super::compare_to_line;
     use super::is_convex;
     use super::is_in_triangle;
     use super::triangulate;
     use super::LineCompare;
-    use super::find_edges;
 
     //#[test]
     fn test_compare_to_line() {
@@ -348,7 +251,7 @@ mod tests {
         let test = (0.2f32, -1.0f32);
         assert_eq!(compare_to_line(&test, &v0, &v1), LineCompare::Right);
         
-        let test = (v0.0 + (v1.0 - v0.0) * 0.2f32, v0.1 + (v1.1 - v0.1) * 0.2f32);      
+        let test = (v0.0 + (v1.0 - v0.0) * 0.2f32, v0.1 + (v1.1 - v0.1) * 0.2f32);
         assert_eq!(compare_to_line(&test, &v0, &v1), LineCompare::On);
     }
     
@@ -383,7 +286,8 @@ mod tests {
         assert!(!is_in_triangle(&test, &v0, &v1, &v2));
     }
 
-    fn is_expected_triangle(v0: &usize, v1: &usize, v2: &usize, expected: &(usize, usize, usize)) -> bool {
+    fn is_expected_triangle(v0: &usize, v1: &usize, v2: &usize,
+                            expected: &(usize, usize, usize)) -> bool {
         if *v0 == expected.0 && *v1 == expected.1 && *v2 == expected.2 {
             return true;
         }
@@ -396,7 +300,8 @@ mod tests {
         false
     }
 
-    fn is_same_triangulation(triangles: &Vec<usize>, mut expected: Vec<(usize, usize, usize)>) -> bool {
+    fn is_same_triangulation(triangles: &Vec<usize>,
+                             mut expected: Vec<(usize, usize, usize)>) -> bool {
         let n = triangles.len() / 3;
         for i in 0..n {
             let mut matched = false;
@@ -420,8 +325,8 @@ mod tests {
     #[test]
     fn test_triangulate_square() {
         let points = vec![ (0.0f32, 0.0f32),
-                           (1.0f32, 0.0f32), 
-                           (1.0f32, 1.0f32), 
+                           (1.0f32, 0.0f32),
+                           (1.0f32, 1.0f32),
                            (0.0f32, 1.0f32) ];
 
         let triangles = triangulate(&points).unwrap();
@@ -439,8 +344,8 @@ mod tests {
     #[test]
     fn test_triangulate_reflex() {
         let points = vec![ (0.0f32, 0.0f32),
-                           (5.0f32, 0.0f32), 
-                           (2.0f32, 2.0f32), 
+                           (5.0f32, 0.0f32),
+                           (2.0f32, 2.0f32),
                            (5.0f32, 4.0f32),
                            (0.0f32, 4.0f32) ];
 
@@ -451,25 +356,5 @@ mod tests {
         }
 
         assert!(is_same_triangulation(&triangles, vec![(0, 1, 2), (0, 2, 4), (4, 2, 3)]));
-    }
-
-    #[test]
-    fn test_find_edges() {
-        // for now I will just inspect the output
-        let points = vec![ (0.0f32, 0.0f32),
-                           (5.0f32, 0.0f32), 
-                           (2.0f32, 2.0f32), 
-                           (5.0f32, 4.0f32),
-                           (0.0f32, 4.0f32) ];
-
-        let triangles = triangulate(&points).unwrap();
-        let edges = find_edges(&triangles, 4);
-
-        for i in 0..(triangles.len() / 3) {
-            println!("T {}, {}, {}", triangles[i*3], triangles[i*3+1], triangles[i*3+2]);
-            println!("E {}, {}, {}", edges[i*3], edges[i*3+1], edges[i*3+2]);
-        }
-
-
     }
 }

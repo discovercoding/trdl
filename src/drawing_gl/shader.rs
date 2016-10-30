@@ -3,6 +3,7 @@ use gl::types::*;
 use std::ptr;
 use std::str;
 use std::ffi::CString;
+use super::super::TrdlError;
 
 static DEFAULT_VERTEX_SHADER: &'static str =
     r"#version 400
@@ -21,15 +22,6 @@ static DEFAULT_FRAGMENT_SHADER: &'static str =
     void main() {
         frag_color = vec4(color, 1.0);
     }";
-
-#[derive(Debug, PartialEq)]
-pub enum ShaderError {
-    NullString,
-    CompileError(String),
-    InvalidCompileError,
-    LinkError(String),
-    InvalidLinkError
-}
 
 pub struct ShaderProgramBuilder<'a> {
     vertex_shader_code: &'a str,
@@ -85,7 +77,7 @@ impl<'a> ShaderProgramBuilder<'a> {
         self
     }
 
-    pub fn build_shader_program(&'a mut self) -> Result<ShaderProgram, ShaderError> {
+    pub fn build_shader_program(&'a mut self) -> Result<ShaderProgram, TrdlError> {
         let vertex_shader_id = try!(self.compile_shader(self.vertex_shader_code, gl::VERTEX_SHADER));
         let tess_control_shader_id = match self.tess_control_shader_code {
             Some(code) => Some(try!(self.compile_shader(code, gl::TESS_CONTROL_SHADER))),
@@ -112,10 +104,10 @@ impl<'a> ShaderProgramBuilder<'a> {
             program_id: program_id })
     }
 
-    fn compile_shader(&'a self, code: &str, shader_type: GLuint) -> Result<GLuint, ShaderError> {
+    fn compile_shader(&'a self, code: &str, shader_type: GLuint) -> Result<GLuint, TrdlError> {
         unsafe {
             let shader_id = gl::CreateShader(shader_type);
-            let c_str = try!(CString::new(code.as_bytes()).map_err(|_| ShaderError::NullString));
+            let c_str = try!(CString::new(code.as_bytes()).map_err(|_| TrdlError::NullString));
             gl::ShaderSource(shader_id, 1, &c_str.as_ptr(), ptr::null());
             gl::CompileShader(shader_id);
 
@@ -130,9 +122,9 @@ impl<'a> ShaderProgramBuilder<'a> {
                 let err = match String::from_utf8(message) {
                     Ok(text) => {
                         println!("err: '{}'", text);
-                        ShaderError::CompileError(text)
+                        TrdlError::CompileError(text)
                     },
-                    Err(_) => ShaderError::InvalidCompileError
+                    Err(_) => TrdlError::InvalidCompileError
                 };
                 Err(err)
             } else {
@@ -145,7 +137,7 @@ impl<'a> ShaderProgramBuilder<'a> {
                         tess_control_shader_id: Option<GLuint>,
                         tess_evaluation_shader_id: Option<GLuint>,
                         geometry_shader_id: Option<GLuint>,
-                        fragment_shader_id: GLuint) -> Result<GLuint, ShaderError> {
+                        fragment_shader_id: GLuint) -> Result<GLuint, TrdlError> {
         unsafe {
             let program_id = gl::CreateProgram();
         
@@ -171,8 +163,8 @@ impl<'a> ShaderProgramBuilder<'a> {
                 let mut message = Vec::with_capacity(length as usize);
                 gl::GetProgramInfoLog(program_id, length, ptr::null_mut(), message.as_mut_ptr() as *mut GLchar);
                 let err = match String::from_utf8(message) {
-                    Ok(text) => ShaderError::CompileError(text),
-                    Err(_) => ShaderError::InvalidCompileError
+                    Ok(text) => TrdlError::CompileError(text),
+                    Err(_) => TrdlError::InvalidCompileError
                 };
                 return Err(err);
             }
@@ -195,11 +187,11 @@ impl<'a> ShaderProgramBuilder<'a> {
 }
 
 impl ShaderProgram {
-    pub fn get_vertex_shader_id(&self) -> GLuint { self.vertex_shader_id }
-    pub fn get_tess_control_shader_id(&self) -> Option<GLuint> { self.tess_control_shader_id }
-    pub fn get_tess_evaluation_shader_id(&self) -> Option<GLuint> { self.tess_evaluation_shader_id }
-    pub fn getgeometry_shader_id(&self) -> Option<GLuint> { self.geometry_shader_id }
-    pub fn get_fragment_shader_id(&self) -> GLuint { self.fragment_shader_id }
+    //pub fn get_vertex_shader_id(&self) -> GLuint { self.vertex_shader_id }
+    //pub fn get_tess_control_shader_id(&self) -> Option<GLuint> { self.tess_control_shader_id }
+    //pub fn get_tess_evaluation_shader_id(&self) -> Option<GLuint> { self.tess_evaluation_shader_id }
+    //pub fn getgeometry_shader_id(&self) -> Option<GLuint> { self.geometry_shader_id }
+    //pub fn get_fragment_shader_id(&self) -> GLuint { self.fragment_shader_id }
     pub fn get_program_id(&self) -> GLuint { self.program_id }
 }
 
