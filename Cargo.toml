@@ -1,0 +1,18 @@
+[package]
+name = "trdl"
+version = "0.1.0"
+authors = ["JeremySorensen <jeremy.a.sorensen@gmail.com>"]
+
+[dependencies]
+glutin = "*"
+gl = "*"
+libc = "*"
+time = "*"
+
+[lib]
+name = "trdl"
+path = "src/lib.rs"
+
+[[bin]]
+name = "trdl_demo"
+path = "src/bin.rs"
