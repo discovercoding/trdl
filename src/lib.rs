@@ -1,11 +1,11 @@
 extern crate gl;
 
 mod triangulation;
-mod drawing_gl;
+mod gl2d;
 
-pub use drawing_gl::drawing::Window;
-pub use drawing_gl::drawing::Drawing;
-pub use drawing_gl::drawing::FilledPath;
+pub use gl2d::drawing::Window;
+pub use gl2d::drawing::Drawing;
+pub use gl2d::drawing::FilledPath;
 
 use std::io;
 use std::error::Error;
