@@ -45,7 +45,7 @@ fn main() {
         with_title("TRDL Test").
         build().unwrap() };
 
-    let mut drawing = trdl::Drawing::new(&window, window_size.0, window_size.1);
+    let mut drawing = trdl::Drawing::new(&window, window_size.0, window_size.1).unwrap();
 
     let mut depth_idx = 0u32;
     let sqrt_size = 10u32;
