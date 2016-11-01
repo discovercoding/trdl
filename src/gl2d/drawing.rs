@@ -115,15 +115,15 @@ pub struct Drawing<'a, W: Window + 'a> {
 }
 
 impl<'a, W: Window> Drawing<'a, W> {
-    pub fn new(window: &'a W, width: u32, height: u32) -> Drawing<W> {
+    pub fn new(window: &'a W, width: u32, height: u32) -> Result<Drawing<W>, TrdlError> {
         window.set_context();
         gl::load_with(|symbol| window.load_fn(symbol));
 
-        let vertex_shader_code = read_file("vertex_shader.glsl").unwrap();
-        let tess_control_shader_code = read_file("tess_control_shader.glsl").unwrap();
-        let tess_evaluation_shader_code = read_file("tess_evaluation_shader.glsl").unwrap();
-        let geometry_shader_code = read_file("geometry_shader.glsl").unwrap();
-        let fragment_shader_code = read_file("fragment_shader.glsl").unwrap();
+        let vertex_shader_code = try!(read_file("shaders/vertex_shader.glsl"));
+        let tess_control_shader_code = try!(read_file("shaders/tess_control_shader.glsl"));
+        let tess_evaluation_shader_code = try!(read_file("shaders/tess_evaluation_shader.glsl"));
+        let geometry_shader_code = try!(read_file("shaders/geometry_shader.glsl"));
+        let fragment_shader_code = try!(read_file("shaders/fragment_shader.glsl"));
         let program;
         {
             let mut builder = shader::ShaderProgramBuilder::new();
@@ -132,7 +132,7 @@ impl<'a, W: Window> Drawing<'a, W> {
             builder.set_tess_evaluation_shader(&tess_evaluation_shader_code);
             builder.set_geometry_shader(&geometry_shader_code);
             builder.set_fragment_shader(&fragment_shader_code);
-            program = builder.build_shader_program().unwrap();
+            program = try!(builder.build_shader_program());
         }
         let program_id = program.get_program_id();
         unsafe {
@@ -160,7 +160,7 @@ impl<'a, W: Window> Drawing<'a, W> {
             let color_vbo = vbo_handles[3];
             let edge_vbo = vbo_handles[4];
 
-            Drawing {
+            Ok(Drawing {
                 window: window,
                 vertices: Vec::new(),
                 control_point_1s: Vec::new(),
@@ -194,7 +194,7 @@ impl<'a, W: Window> Drawing<'a, W> {
                 background_color: [gl!(0.2), gl!(0.2), gl!(0.2)],
 
                 remake: true
-            }
+            })
         }
     }
 
