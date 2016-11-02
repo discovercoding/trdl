@@ -3,25 +3,30 @@ extern crate trdl;
 
 use std::os::raw::c_void;
 
-fn make_shape(off_x: f32, off_y: f32) -> (trdl::FilledPath) {
-    let a0 = (150f32 + off_x, 150f32 + off_y);
-    let b0 = (300f32 + off_x, 200f32 + off_y);
-    let bc1 = (350f32 + off_x, 250f32 + off_y);
-    let bc2 = (200f32 + off_x, 250f32 + off_y);
-    let c0 = (200f32 + off_x, 300f32 + off_y);
-    let d0 = (50f32 + off_x, 100f32 + off_y);
-    let de1 = (0f32 + off_x, 50f32 + off_y);
-    let de2 = (50f32 + off_x, 0f32 + off_y);
-    let e0 = (150f32 + off_x, 0f32 + off_y);
+fn make_shape(off_x: f32, off_y: f32, fill_color: (f32, f32, f32),
+              stroke_color: (f32, f32, f32), stroke_width: u32) -> (trdl::FilledPath) {
+//    let a0 = (150f32 + off_x, 150f32 + off_y);
+//    let b0 = (300f32 + off_x, 200f32 + off_y);
+//    let bc1 = (350f32 + off_x, 250f32 + off_y);
+//    let bc2 = (200f32 + off_x, 250f32 + off_y);
+//    let c0 = (200f32 + off_x, 300f32 + off_y);
+//    let d0 = (50f32 + off_x, 100f32 + off_y);
+//    let de1 = (0f32 + off_x, 50f32 + off_y);
+//    let de2 = (50f32 + off_x, 0f32 + off_y);
+//    let e0 = (150f32 + off_x, 0f32 + off_y);
 
-    trdl::FilledPath::with_num_vertices(5).
-        add_straight_line(a0).
-        add_bezier_curve(b0, bc1, bc2).
-        add_straight_line(c0).
-        add_bezier_curve(d0, de1, de2).
-        add_straight_line(e0).
-        set_fill_color(1f32, 1f32, 0f32).
-        set_stroke(0f32, 0f32, 1f32, 2)
+    let a = (  0f32 + off_x, 0f32   + off_y);
+    let b = (200f32 + off_x, 0f32   + off_y);
+    let c = (200f32 + off_x, 200f32 + off_y);
+    let d = (  0f32 + off_x, 200f32 + off_y);
+
+    trdl::FilledPath::with_num_vertices(4).
+        add_straight_line(a).
+        add_straight_line(b).
+        add_straight_line(c).
+        add_straight_line(d).
+        set_fill_color(fill_color.0, fill_color.1, fill_color.2).
+        set_stroke(stroke_color.0, stroke_color.1, stroke_color.2, stroke_width)
 }
 
 struct Window {
@@ -45,20 +50,30 @@ fn main() {
         with_title("TRDL Test").
         build().unwrap() };
 
-    let mut drawing = trdl::Drawing::new(&window, window_size.0, window_size.1).unwrap();
+    let mut drawing = trdl::Drawing::new(&window, window_size.0, window_size.1,
+            0.4, 0.5, 0.6).unwrap();
 
-    let mut depth_idx = 0u32;
-    let sqrt_size = 10u32;
+    let mut idx = 0usize;
+    let sqrt_size = 2u32;
     let num_shapes = sqrt_size * sqrt_size;
     let wx = window_size.0 as i32 - 300i32;
     let wy = window_size.1 as i32 - 300i32;
+
+    let colors = [(1.0f32, 0.5f32, 0.0f32), (0.0f32, 0.7f32, 0.4f32),
+                  (0.5f32, 0.7f32, 0.3f32), (0.3f32, 0.2f32, 0.9f32)];
+    let stroke_colors = [(0.0f32, 0.0f32, 1.0f32), (0.5f32, 0.0f32, 0.2f32),
+        (0.0f32, 0.0f32, 0.3f32), (0.3f32, 0.7f32, 0.0f32)];
+    let thicknesses = [5, 10, 20, 50];
+
     for i in 0..sqrt_size {
-        let delta_x = wx * (i as i32) / (sqrt_size as i32);
+        let delta_x = 100 + wx * (i as i32) / (sqrt_size as i32);
         for j in 0..sqrt_size {
-            let delta_y = wy * (j as i32) / (sqrt_size as i32);
-            let depth = 1.0f32 - 2.0f32 * (depth_idx as f32) / (num_shapes as f32);
-            depth_idx += 1;
-            drawing.add_filled_path(make_shape(delta_x as f32, delta_y as f32), depth).unwrap();
+            let delta_y = 100 + wy * (j as i32) / (sqrt_size as i32);
+            drawing.add_filled_path
+                (make_shape(delta_x as f32, delta_y as f32,
+                            colors[idx], stroke_colors[idx], thicknesses[idx])).unwrap();
+            idx += 1;
+            if idx > 3 { idx = 0; }
         }
     }
     drawing.draw();

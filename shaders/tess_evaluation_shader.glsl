@@ -3,8 +3,9 @@
 layout (triangles, equal_spacing, ccw) in;
 in vec2 tc_control_1[];
 in vec2 tc_control_2[];
-in uint tc_edge[];
+in float tc_edge[];
 in vec3 tc_color[];
+in vec3 tc_stroke_color[];
 
 out vec3 te_bary;
 out vec3 te_edge;
@@ -12,6 +13,7 @@ out vec3 te_color;
 out vec2 te_tan_ab;
 out vec2 te_tan_bc;
 out vec2 te_tan_ca;
+out vec3 te_stroke_color;
 
 void main() {
 
@@ -51,5 +53,6 @@ void main() {
     te_bary = vec3(s, t, u);
     te_edge = vec3(tc_edge[0], tc_edge[1], tc_edge[2]);
     te_color = tc_color[0];
+    te_stroke_color = tc_stroke_color[0];
 }
 
