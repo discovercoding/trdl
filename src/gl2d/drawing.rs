@@ -21,6 +21,8 @@ const ONE:   GLfloat = gl!(1);
 const TWO:   GLfloat = gl!(2);
 const THREE: GLfloat = gl!(3);
 
+const MAX_DEPTH : f32 = 5e5f32;
+
 pub trait Window {
     fn set_context(&self);
     fn load_fn(&self, addr: &str) -> *const c_void;
@@ -80,42 +82,49 @@ impl FilledPath {
 
 pub struct Drawing<'a, W: Window + 'a> {
     window: &'a W,
+
     vertices: Vec<GLfloat>,
     control_point_1s: Vec<GLfloat>,
     control_point_2s: Vec<GLfloat>,
     fill_colors: Vec<GLfloat>,
+    stroke_edges: Vec<GLfloat>,
     stroke_colors: Vec<GLfloat>,
-    stroke_edges: Vec<GLuint>,
-
-    shader_program: shader::ShaderProgram,
 
     in_position: GLint,
     in_control_1: GLint,
     in_control_2: GLint,
     in_color: GLint,
     in_edge: GLint,
-
-    vao_handle: GLuint,
+    in_stroke_color: GLint,
 
     position_vbo: GLuint,
     control_1_vbo: GLuint,
     control_2_vbo: GLuint,
     color_vbo: GLuint,
     edge_vbo: GLuint,
+    stroke_color_vbo: GLuint,
+
+    shader_program: shader::ShaderProgram,
+    vao_handle: GLuint,
 
     outer_tess_uniform: GLint,
     inner_tess_uniform: GLint,
     projection_uniform: GLint,
+    window_size_uniform: GLint,
 
+    max_dim: GLfloat,
     ortho_proj: [GLfloat; 16],
 
     background_color: [GLfloat; 3],
 
+    depth_idx: usize,
+    num_tris: usize,
     remake: bool
 }
 
 impl<'a, W: Window> Drawing<'a, W> {
-    pub fn new(window: &'a W, width: u32, height: u32) -> Result<Drawing<W>, TrdlError> {
+    pub fn new(window: &'a W, width: u32, height: u32, bg_red: f32, bg_green: f32, bg_blue: f32) ->
+            Result<Drawing<W>, TrdlError> {
         window.set_context();
         gl::load_with(|symbol| window.load_fn(symbol));
 
@@ -146,12 +155,15 @@ impl<'a, W: Window> Drawing<'a, W> {
             let in_color = gl::GetAttribLocation(program_id, c_str.as_ptr());
             let c_str = CString::new("in_edge").unwrap();
             let in_edge = gl::GetAttribLocation(program_id, c_str.as_ptr());
+            let c_str = CString::new("in_stroke_color").unwrap();
+            let in_stroke_color = gl::GetAttribLocation(program_id, c_str.as_ptr());
 
             let vao_handle = 0 as GLuint;
 
             // Create the buffer objects
-            const NUM_VBO: i32 = 5;
-            let vbo_handles = [0 as GLuint, 0 as GLuint, 0 as GLuint, 0 as GLuint, 0 as GLuint];
+            const NUM_VBO: i32 = 6;
+            let mut vbo_handles = [0 as GLuint, 0 as GLuint, 0 as GLuint,
+                               0 as GLuint, 0 as GLuint, 0 as GLuint];
             gl::GenBuffers(NUM_VBO, mem::transmute(&vbo_handles[0]));
 
             let position_vbo = vbo_handles[0];
@@ -159,9 +171,11 @@ impl<'a, W: Window> Drawing<'a, W> {
             let control_2_vbo = vbo_handles[2];
             let color_vbo = vbo_handles[3];
             let edge_vbo = vbo_handles[4];
+            let stroke_color_vbo = vbo_handles[5];
 
             Ok(Drawing {
                 window: window,
+
                 vertices: Vec::new(),
                 control_point_1s: Vec::new(),
                 control_point_2s: Vec::new(),
@@ -169,36 +183,41 @@ impl<'a, W: Window> Drawing<'a, W> {
                 stroke_colors: Vec::new(),
                 stroke_edges: Vec::new(),
 
-                shader_program: program,
-
                 in_position: in_position,
                 in_control_1: in_control_1,
                 in_control_2: in_control_2,
                 in_color: in_color,
                 in_edge: in_edge,
-
-                vao_handle: vao_handle,
+                in_stroke_color: in_stroke_color,
 
                 position_vbo: position_vbo,
                 control_1_vbo: control_1_vbo,
                 control_2_vbo: control_2_vbo,
                 color_vbo: color_vbo,
                 edge_vbo: edge_vbo,
+                stroke_color_vbo: stroke_color_vbo,
+
+                shader_program: program,
+                vao_handle: vao_handle,
 
                 outer_tess_uniform: -1,
                 inner_tess_uniform: -1,
                 projection_uniform: -1,
+                window_size_uniform: -1,
 
+                max_dim: if width > height { width } else { height } as GLfloat,
                 ortho_proj: Self::ortho(width, height),
 
-                background_color: [gl!(0.2), gl!(0.2), gl!(0.2)],
+                background_color: [gl!(bg_red), gl!(bg_green), gl!(bg_blue)],
 
+                depth_idx: 0,
+                num_tris: 0,
                 remake: true
             })
         }
     }
 
-    pub fn add_filled_path(&mut self, path: FilledPath, depth: f32) ->Result<(), TrdlError> {
+    pub fn add_filled_path(&mut self, path: FilledPath) -> Result<(), TrdlError> {
         self.remake = true;
         let mut control_point_map = HashMap::new();
         let last = path.vertices.len() - 1;
@@ -220,17 +239,20 @@ impl<'a, W: Window> Drawing<'a, W> {
         }
 
         let indices = try!(triangulate(&path.vertices));
-        let num_tris = indices.len() / 3;
+        self.num_tris = indices.len() / 3;
 
-        self.vertices.reserve(3 * num_tris);
-        self.control_point_1s.reserve(2 * num_tris);
-        self.control_point_2s.reserve(2 * num_tris);
-        self.fill_colors.reserve(3 * num_tris);
-        self.stroke_colors.reserve(3 * num_tris);
-        self.stroke_edges.reserve(num_tris);
+        self.vertices.reserve(3 * self.num_tris);
+        self.control_point_1s.reserve(2 * self.num_tris);
+        self.control_point_2s.reserve(2 * self.num_tris);
+        self.fill_colors.reserve(3 * self.num_tris);
+        self.stroke_colors.reserve(3 * self.num_tris);
+        self.stroke_edges.reserve(self.num_tris);
 
         let num_verts = path.vertices.len();
-        for t in 0..num_tris {
+        self.depth_idx += 1;
+        let depth = (self.depth_idx as f32) / MAX_DEPTH;
+
+        for t in 0..self.num_tris {
             let ti0 = 3*t;
             let ti1 = ti0+1;
             let ti2 = ti0+2;
@@ -245,17 +267,17 @@ impl<'a, W: Window> Drawing<'a, W> {
                                &mut self.control_point_1s, &mut self.control_point_2s);
             push3(&mut self.fill_colors, path.fill_color);
             if let Some(stroke) = path.stroke {
-                let thick = stroke.1;
                 push3(&mut self.stroke_colors, stroke.0);
+                let thickness = gl!(stroke.1);
                 let (e0, e1, e2) = triangle_edges(ti0, ti1, ti2, num_verts);
-                self.stroke_edges.push(if e0 {thick} else {0u32});
-                self.stroke_edges.push(if e1 {thick} else {0u32});
-                self.stroke_edges.push(if e2 {thick} else {0u32});
+                self.stroke_edges.push(if e0 {thickness} else {ZERO});
+                self.stroke_edges.push(if e1 {thickness} else {ZERO});
+                self.stroke_edges.push(if e2 {thickness} else {ZERO});
             } else {
-                push3(&mut self.stroke_colors, [0f32, 0f32, 0f32]);
-                self.stroke_edges.push(0u32);
-                self.stroke_edges.push(0u32);
-                self.stroke_edges.push(0u32);
+                push3(&mut self.stroke_colors, [ZERO, ZERO, ZERO]);
+                self.stroke_edges.push(ZERO);
+                self.stroke_edges.push(ZERO);
+                self.stroke_edges.push(ZERO);
             }
         }
         Ok(())
@@ -299,9 +321,19 @@ impl<'a, W: Window> Drawing<'a, W> {
                 // Populate the edge buffer
                 gl::BindBuffer(gl::ARRAY_BUFFER, self.edge_vbo);
                 gl::BufferData(gl::ARRAY_BUFFER,
-                    (self.stroke_edges.len() * mem::size_of::<GLuint> ()) as GLsizeiptr,
+                    (self.stroke_edges.len() * mem::size_of::<GLfloat> ()) as GLsizeiptr,
                     mem::transmute(&self.stroke_edges[0]),
                     gl::STATIC_DRAW);
+                for s in &self.stroke_edges {
+                    println!("stroke = {}", s);
+                }
+
+                // populate the stroke color buffer
+                gl::BindBuffer(gl::ARRAY_BUFFER, self.stroke_color_vbo);
+                gl::BufferData(gl::ARRAY_BUFFER,
+                              (self.stroke_colors.len() * mem::size_of::<GLfloat>()) as GLsizeiptr,
+                               mem::transmute(&self.stroke_colors[0]),
+                               gl::STATIC_DRAW);
 
                 gl::PatchParameteri(gl::PATCH_VERTICES, 3);
 
@@ -315,22 +347,26 @@ impl<'a, W: Window> Drawing<'a, W> {
                 gl::EnableVertexAttribArray(2 as GLuint); // control point 2
                 gl::EnableVertexAttribArray(3 as GLuint); // color
                 gl::EnableVertexAttribArray(4 as GLuint); // edge
+                gl::EnableVertexAttribArray(5 as GLuint); // stroke color
 
                 gl::BindBuffer(gl::ARRAY_BUFFER, self.position_vbo);
                 gl::VertexAttribPointer(self.in_position as GLuint, 3, gl::FLOAT,
-                gl::FALSE as GLboolean, 0, ptr::null());
+                                        gl::FALSE as GLboolean, 0, ptr::null());
                 gl::BindBuffer(gl::ARRAY_BUFFER, self.control_1_vbo);
                 gl::VertexAttribPointer(self.in_control_1 as GLuint, 2, gl::FLOAT,
-                gl::FALSE as GLboolean, 0, ptr::null());
+                                        gl::FALSE as GLboolean, 0, ptr::null());
                 gl::BindBuffer(gl::ARRAY_BUFFER, self.control_2_vbo);
                 gl::VertexAttribPointer(self.in_control_2 as GLuint, 2, gl::FLOAT,
-                gl::FALSE as GLboolean, 0, ptr::null());
+                                        gl::FALSE as GLboolean, 0, ptr::null());
                 gl::BindBuffer(gl::ARRAY_BUFFER, self.color_vbo);
                 gl::VertexAttribPointer(self.in_color as GLuint, 3, gl::FLOAT,
-                gl::FALSE as GLboolean, 0, ptr::null());
+                                        gl::FALSE as GLboolean, 0, ptr::null());
                 gl::BindBuffer(gl::ARRAY_BUFFER, self.edge_vbo);
-                gl::VertexAttribPointer(self.in_edge as GLuint, 1, gl::UNSIGNED_INT,
-                gl::FALSE as GLboolean, 0, ptr::null());
+                gl::VertexAttribPointer(self.in_edge as GLuint, 1, gl::FLOAT,
+                                        gl::FALSE as GLboolean, 0, ptr::null());
+                gl::BindBuffer(gl::ARRAY_BUFFER, self.stroke_color_vbo);
+                gl::VertexAttribPointer(self.in_stroke_color as GLuint, 3, gl::FLOAT,
+                                        gl::FALSE as GLboolean, 0, ptr::null());
 
                 let program_id = self.shader_program.get_program_id();
                 let c_str = CString::new("outer_tess".as_bytes()).unwrap();
@@ -339,6 +375,8 @@ impl<'a, W: Window> Drawing<'a, W> {
                 self.inner_tess_uniform = gl::GetUniformLocation(program_id, c_str.as_ptr());
                 let c_str = CString::new("projection".as_bytes()).unwrap();
                 self.projection_uniform = gl::GetUniformLocation(program_id, c_str.as_ptr());
+                let c_str = CString::new("window_size".as_bytes()).unwrap();
+                self.window_size_uniform = gl::GetUniformLocation(program_id, c_str.as_ptr());
 
                 gl::UseProgram(self.shader_program.get_program_id());
 
@@ -353,6 +391,11 @@ impl<'a, W: Window> Drawing<'a, W> {
                 if self.projection_uniform >= 0 {
                     gl::UniformMatrix4fv(self.projection_uniform, 1, gl::FALSE as GLboolean,
                                          mem::transmute(&self.ortho_proj[0]));
+                }
+
+                if self.window_size_uniform >= 0 {
+                    gl::Uniform1f(self.window_size_uniform,
+                                  self.max_dim);
                 }
 
                 gl::Enable(gl::DEPTH_TEST);
@@ -371,16 +414,17 @@ impl<'a, W: Window> Drawing<'a, W> {
     }
     fn ortho(width: u32, height: u32) -> [GLfloat; 16] {
         [
-            TWO / gl!(width),  ZERO, ZERO, ZERO,
-            ZERO, TWO / gl!(height), ZERO, ZERO,
-            ZERO, ZERO, ONE, ZERO,
-            -ONE, -ONE, ZERO, ONE
+            TWO / gl!(width),  ZERO,              ZERO, ZERO,
+            ZERO,              TWO / gl!(height), ZERO, ZERO,
+            ZERO,              ZERO,              ONE,  ZERO,
+            -ONE,             -ONE,               ZERO, ONE
         ]
     }
 
     pub fn set_size(&mut self, width: u32, height: u32) {
         self.ortho_proj = Self::ortho(width, height);
         self.remake = true;
+        self.max_dim = if width > height { width } else { height } as GLfloat;
     }
 }
 
@@ -392,6 +436,7 @@ impl<'a, W: Window> Drop for Drawing<'a, W> {
             gl::DeleteBuffers(1, &self.control_2_vbo);
             gl::DeleteBuffers(1, &self.color_vbo);
             gl::DeleteBuffers(1, &self.edge_vbo);
+            gl::DeleteBuffers(1, &self.stroke_color_vbo);
             gl::DeleteVertexArrays(1, &self.vao_handle);
         }
     }
