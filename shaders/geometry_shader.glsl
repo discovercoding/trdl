@@ -12,7 +12,7 @@ in vec3 te_stroke_color[];
 
 out vec3 g_color;
 
-uniform float window_size;
+uniform vec2 window_size;
 
 layout(triangles) in;
 layout(triangle_strip, max_vertices = 12) out;
@@ -24,7 +24,7 @@ int is_edge(vec3 bary1, vec3 bary2, vec3 edges) {
     else { return 0; }
 }
 
-void make_edge(vec2 p0, vec2 p1, float depth, vec2 tan0, vec2 tan1, float thickness, vec3 color) {
+void make_edge(vec2 p0, vec2 p1, float depth, vec2 tan0, vec2 tan1, vec2 thickness, vec3 color) {
     tan0 = normalize(tan0);
     vec2 perp0 = vec2(-tan0.y, tan0.x) * thickness;
     tan1 = normalize(tan1);
@@ -64,45 +64,44 @@ void main() {
 
     EndPrimitive();
 
-    float depth = v0.z + 1.0e-6;
-        //float stroke_thickness = 0.02;
+    float depth = v0.z - 1.0e-6;
     vec3 stroke_color = te_stroke_color[0];
 
     int edge = is_edge(te_bary[0], te_bary[1], te_edge[0]);
     if (edge == 1) {
-        float stroke_thickness = te_edge[0].x / window_size;
+        vec2 stroke_thickness = vec2(te_edge[0].s / window_size.x, te_edge[0].s / window_size.y);
         make_edge(v0.xy, v1.xy, depth, te_tan_bc[0], te_tan_bc[1], stroke_thickness, stroke_color);
     } else if (edge == 2) {
-        float stroke_thickness = te_edge[0].y / window_size;
+        vec2 stroke_thickness = vec2(te_edge[0].t / window_size.x, te_edge[0].t / window_size.y);
         make_edge(v0.xy, v1.xy, depth, te_tan_ca[0], te_tan_ca[1], stroke_thickness, stroke_color);
     } else if (edge == 3) {
-        float stroke_thickness = te_edge[0].z / window_size;
+        vec2 stroke_thickness = vec2(te_edge[0].p / window_size.x, te_edge[0].p / window_size.y);
         make_edge(v0.xy, v1.xy, depth, te_tan_ab[0], te_tan_ab[1], stroke_thickness, stroke_color);
     }
 
     stroke_color = te_stroke_color[1];
     edge = is_edge(te_bary[1], te_bary[2], te_edge[1]);
     if (edge == 1) {
-        float stroke_thickness = te_edge[1].x / window_size;
+        vec2 stroke_thickness = vec2(te_edge[1].s / window_size.x, te_edge[1].s / window_size.y);
         make_edge(v1.xy, v2.xy, depth, te_tan_bc[1], te_tan_bc[2], stroke_thickness, stroke_color);
     } else if (edge == 2) {
-        float stroke_thickness = te_edge[1].y / window_size;
+        vec2 stroke_thickness = vec2(te_edge[1].t / window_size.x, te_edge[1].t / window_size.y);
         make_edge(v1.xy, v2.xy, depth, te_tan_ca[1], te_tan_ca[2], stroke_thickness, stroke_color);
     } else if (edge == 3) {
-        float stroke_thickness = te_edge[1].z / window_size;
+        vec2 stroke_thickness = vec2(te_edge[1].p / window_size.x, te_edge[1].p / window_size.y);
         make_edge(v1.xy, v2.xy, depth, te_tan_ab[1], te_tan_ab[2], stroke_thickness, stroke_color);
     }
 
     stroke_color = te_stroke_color[2];
     edge = is_edge(te_bary[2], te_bary[0], te_edge[2]);
     if (edge == 1) {
-        float stroke_thickness = te_edge[2].x / window_size;
+        vec2 stroke_thickness = vec2(te_edge[2].s / window_size.x, te_edge[2].s / window_size.y);
         make_edge(v2.xy, v0.xy, depth, te_tan_bc[2], te_tan_bc[0], stroke_thickness, stroke_color);
     } else if (edge == 2) {
-        float stroke_thickness = te_edge[2].y / window_size;
+        vec2 stroke_thickness = vec2(te_edge[2].t / window_size.x, te_edge[2].t / window_size.y);
         make_edge(v2.xy, v0.xy, depth, te_tan_ca[2], te_tan_ca[0], stroke_thickness, stroke_color);
     } else if (edge == 3) {
-        float stroke_thickness = te_edge[2].z / window_size;
+        vec2 stroke_thickness = vec2(te_edge[2].p / window_size.x, te_edge[2].p / window_size.y);
         make_edge(v2.xy, v0.xy, depth, te_tan_ab[2], te_tan_ab[0], stroke_thickness, stroke_color);
     }
 }

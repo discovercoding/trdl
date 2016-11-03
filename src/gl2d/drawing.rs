@@ -82,6 +82,7 @@ impl FilledPath {
 
 pub struct Drawing<'a, W: Window + 'a> {
     window: &'a W,
+    window_size: [GLfloat; 2],
 
     vertices: Vec<GLfloat>,
     control_point_1s: Vec<GLfloat>,
@@ -112,7 +113,6 @@ pub struct Drawing<'a, W: Window + 'a> {
     projection_uniform: GLint,
     window_size_uniform: GLint,
 
-    max_dim: GLfloat,
     ortho_proj: [GLfloat; 16],
 
     background_color: [GLfloat; 3],
@@ -175,6 +175,7 @@ impl<'a, W: Window> Drawing<'a, W> {
 
             Ok(Drawing {
                 window: window,
+                window_size: [gl!(width), gl!(height)],
 
                 vertices: Vec::new(),
                 control_point_1s: Vec::new(),
@@ -205,7 +206,6 @@ impl<'a, W: Window> Drawing<'a, W> {
                 projection_uniform: -1,
                 window_size_uniform: -1,
 
-                max_dim: if width > height { width } else { height } as GLfloat,
                 ortho_proj: Self::ortho(width, height),
 
                 background_color: [gl!(bg_red), gl!(bg_green), gl!(bg_blue)],
@@ -239,6 +239,12 @@ impl<'a, W: Window> Drawing<'a, W> {
         }
 
         let indices = try!(triangulate(&path.vertices));
+
+        for i in &indices {
+            println!("i = {}; v = ({}, {})", i, path.vertices[*i].0, path.vertices[*i].1);
+        }
+
+
         self.num_tris = indices.len() / 3;
 
         self.vertices.reserve(3 * self.num_tris);
@@ -269,7 +275,10 @@ impl<'a, W: Window> Drawing<'a, W> {
             if let Some(stroke) = path.stroke {
                 push3(&mut self.stroke_colors, stroke.0);
                 let thickness = gl!(stroke.1);
-                let (e0, e1, e2) = triangle_edges(ti0, ti1, ti2, num_verts);
+                let (e0, e1, e2) = triangle_edges(indices[ti0], indices[ti1], indices[ti2], num_verts-1);
+                println!("{}->{}: {}", indices[ti0], indices[ti1], if e2 { "HAS edge" } else {" has NO edge" });
+                println!("{}->{}: {}", indices[ti1], indices[ti2], if e0 { "HAS edge" } else {" has NO edge" });
+                println!("{}->{}: {}", indices[ti2], indices[ti0], if e1 { "HAS edge" } else {" has NO edge" });
                 self.stroke_edges.push(if e0 {thickness} else {ZERO});
                 self.stroke_edges.push(if e1 {thickness} else {ZERO});
                 self.stroke_edges.push(if e2 {thickness} else {ZERO});
@@ -324,9 +333,6 @@ impl<'a, W: Window> Drawing<'a, W> {
                     (self.stroke_edges.len() * mem::size_of::<GLfloat> ()) as GLsizeiptr,
                     mem::transmute(&self.stroke_edges[0]),
                     gl::STATIC_DRAW);
-                for s in &self.stroke_edges {
-                    println!("stroke = {}", s);
-                }
 
                 // populate the stroke color buffer
                 gl::BindBuffer(gl::ARRAY_BUFFER, self.stroke_color_vbo);
@@ -394,8 +400,8 @@ impl<'a, W: Window> Drawing<'a, W> {
                 }
 
                 if self.window_size_uniform >= 0 {
-                    gl::Uniform1f(self.window_size_uniform,
-                                  self.max_dim);
+                    gl::Uniform2fv(self.window_size_uniform, 1,
+                                  mem::transmute(&self.window_size[0]));
                 }
 
                 gl::Enable(gl::DEPTH_TEST);
@@ -424,7 +430,7 @@ impl<'a, W: Window> Drawing<'a, W> {
     pub fn set_size(&mut self, width: u32, height: u32) {
         self.ortho_proj = Self::ortho(width, height);
         self.remake = true;
-        self.max_dim = if width > height { width } else { height } as GLfloat;
+        self.window_size = [gl!(width), gl!(height)];
     }
 }
 
@@ -504,9 +510,9 @@ fn push3(vec: &mut Vec<GLfloat>, value: [f32; 3]) {
     vec.push(value[2]);
 }
 
-fn triangle_edges(i0: usize, i1: usize, i2: usize, max: usize) -> (bool, bool, bool) { 
+fn triangle_edges(i0: usize, i1: usize, i2: usize, max: usize) -> (bool, bool, bool) {
     let e2 = i1 == 0 && i0 == max || (i1 > i0 && i1 - i0 == 1);
     let e0 = i2 == 0 && i1 == max || (i2 > i1 && i2 - i1 == 1);
-    let e1 = i0 == 0 && i2 == max || (i2 > i2 && i0 - i2 == 1);
+    let e1 = i0 == 0 && i2 == max || (i0 > i2 && i0 - i2 == 1);
     (e0, e1, e2)
 }
