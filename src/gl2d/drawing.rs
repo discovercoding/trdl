@@ -90,6 +90,7 @@ pub struct Drawing<'a, W: Window + 'a> {
     fill_colors: Vec<GLfloat>,
     stroke_edges: Vec<GLfloat>,
     stroke_colors: Vec<GLfloat>,
+    do_fill: Vec<GLint>,
 
     in_position: GLint,
     in_control_1: GLint,
@@ -97,6 +98,7 @@ pub struct Drawing<'a, W: Window + 'a> {
     in_color: GLint,
     in_edge: GLint,
     in_stroke_color: GLint,
+    in_do_fill: GLint,
 
     position_vbo: GLuint,
     control_1_vbo: GLuint,
@@ -104,6 +106,7 @@ pub struct Drawing<'a, W: Window + 'a> {
     color_vbo: GLuint,
     edge_vbo: GLuint,
     stroke_color_vbo: GLuint,
+    do_fill_vbo: GLuint,
 
     shader_program: shader::ShaderProgram,
     vao_handle: GLuint,
@@ -157,12 +160,14 @@ impl<'a, W: Window> Drawing<'a, W> {
             let in_edge = gl::GetAttribLocation(program_id, c_str.as_ptr());
             let c_str = CString::new("in_stroke_color").unwrap();
             let in_stroke_color = gl::GetAttribLocation(program_id, c_str.as_ptr());
+            let c_str = CString::new("in_do_fill").unwrap();
+            let in_do_fill = gl::GetAttribLocation(program_id, c_str.as_ptr());
 
             let vao_handle = 0 as GLuint;
 
             // Create the buffer objects
-            const NUM_VBO: i32 = 6;
-            let mut vbo_handles = [0 as GLuint, 0 as GLuint, 0 as GLuint,
+            const NUM_VBO: i32 = 7;
+            let mut vbo_handles = [0 as GLuint, 0 as GLuint, 0 as GLuint, 0 as GLuint,
                                0 as GLuint, 0 as GLuint, 0 as GLuint];
             gl::GenBuffers(NUM_VBO, mem::transmute(&vbo_handles[0]));
 
@@ -172,6 +177,7 @@ impl<'a, W: Window> Drawing<'a, W> {
             let color_vbo = vbo_handles[3];
             let edge_vbo = vbo_handles[4];
             let stroke_color_vbo = vbo_handles[5];
+            let do_fill_vbo = vbo_handles[6];
 
             Ok(Drawing {
                 window: window,
@@ -183,6 +189,7 @@ impl<'a, W: Window> Drawing<'a, W> {
                 fill_colors: Vec::new(),
                 stroke_colors: Vec::new(),
                 stroke_edges: Vec::new(),
+                do_fill: Vec::new(),
 
                 in_position: in_position,
                 in_control_1: in_control_1,
@@ -190,6 +197,7 @@ impl<'a, W: Window> Drawing<'a, W> {
                 in_color: in_color,
                 in_edge: in_edge,
                 in_stroke_color: in_stroke_color,
+                in_do_fill: in_do_fill,
 
                 position_vbo: position_vbo,
                 control_1_vbo: control_1_vbo,
@@ -197,6 +205,7 @@ impl<'a, W: Window> Drawing<'a, W> {
                 color_vbo: color_vbo,
                 edge_vbo: edge_vbo,
                 stroke_color_vbo: stroke_color_vbo,
+                do_fill_vbo: do_fill_vbo,
 
                 shader_program: program,
                 vao_handle: vao_handle,
@@ -217,7 +226,7 @@ impl<'a, W: Window> Drawing<'a, W> {
         }
     }
 
-    pub fn add_filled_path(&mut self, path: FilledPath) -> Result<(), TrdlError> {
+    pub fn add_filled_path(&mut self, path: FilledPath, do_fill: bool) -> Result<(), TrdlError> {
         self.remake = true;
         let mut control_point_map = HashMap::new();
         let last = path.vertices.len() - 1;
@@ -247,12 +256,13 @@ impl<'a, W: Window> Drawing<'a, W> {
 
         self.num_tris = indices.len() / 3;
 
-        self.vertices.reserve(3 * self.num_tris);
-        self.control_point_1s.reserve(2 * self.num_tris);
-        self.control_point_2s.reserve(2 * self.num_tris);
-        self.fill_colors.reserve(3 * self.num_tris);
-        self.stroke_colors.reserve(3 * self.num_tris);
-        self.stroke_edges.reserve(self.num_tris);
+        self.vertices.reserve(9 * self.num_tris);
+        self.control_point_1s.reserve(6 * self.num_tris);
+        self.control_point_2s.reserve(6 * self.num_tris);
+        self.fill_colors.reserve(9 * self.num_tris);
+        self.stroke_colors.reserve(9 * self.num_tris);
+        self.stroke_edges.reserve(3 * self.num_tris);
+        self.do_fill.reserve(3 * self.num_tris);
 
         let num_verts = path.vertices.len();
         self.depth_idx += 1;
@@ -287,6 +297,16 @@ impl<'a, W: Window> Drawing<'a, W> {
                 self.stroke_edges.push(ZERO);
                 self.stroke_edges.push(ZERO);
                 self.stroke_edges.push(ZERO);
+            }
+            if do_fill {
+                self.do_fill.push(1 as GLint);
+                self.do_fill.push(1 as GLint);
+                self.do_fill.push(1 as GLint);
+
+            } else {
+                self.do_fill.push(0 as GLint);
+                self.do_fill.push(0 as GLint);
+                self.do_fill.push(0 as GLint);
             }
         }
         Ok(())
@@ -341,6 +361,13 @@ impl<'a, W: Window> Drawing<'a, W> {
                                mem::transmute(&self.stroke_colors[0]),
                                gl::STATIC_DRAW);
 
+                // populate the do fill buffer
+                gl::BindBuffer(gl::ARRAY_BUFFER, self.do_fill_vbo);
+                gl::BufferData(gl::ARRAY_BUFFER,
+                               (self.do_fill.len() * mem::size_of::<GLint>()) as GLsizeiptr,
+                               mem::transmute(&self.do_fill[0]),
+                               gl::STATIC_DRAW);
+
                 gl::PatchParameteri(gl::PATCH_VERTICES, 3);
 
                 // Create and set-up the vertex array object
@@ -354,6 +381,7 @@ impl<'a, W: Window> Drawing<'a, W> {
                 gl::EnableVertexAttribArray(3 as GLuint); // color
                 gl::EnableVertexAttribArray(4 as GLuint); // edge
                 gl::EnableVertexAttribArray(5 as GLuint); // stroke color
+                gl::EnableVertexAttribArray(6 as GLuint); // do fill
 
                 gl::BindBuffer(gl::ARRAY_BUFFER, self.position_vbo);
                 gl::VertexAttribPointer(self.in_position as GLuint, 3, gl::FLOAT,
@@ -372,6 +400,9 @@ impl<'a, W: Window> Drawing<'a, W> {
                                         gl::FALSE as GLboolean, 0, ptr::null());
                 gl::BindBuffer(gl::ARRAY_BUFFER, self.stroke_color_vbo);
                 gl::VertexAttribPointer(self.in_stroke_color as GLuint, 3, gl::FLOAT,
+                                        gl::FALSE as GLboolean, 0, ptr::null());
+                gl::BindBuffer(gl::ARRAY_BUFFER, self.do_fill_vbo);
+                gl::VertexAttribPointer(self.in_do_fill as GLuint, 1, gl::INT,
                                         gl::FALSE as GLboolean, 0, ptr::null());
 
                 let program_id = self.shader_program.get_program_id();
@@ -443,6 +474,7 @@ impl<'a, W: Window> Drop for Drawing<'a, W> {
             gl::DeleteBuffers(1, &self.color_vbo);
             gl::DeleteBuffers(1, &self.edge_vbo);
             gl::DeleteBuffers(1, &self.stroke_color_vbo);
+            gl::DeleteBuffers(1, &self.do_fill_vbo);
             gl::DeleteVertexArrays(1, &self.vao_handle);
         }
     }

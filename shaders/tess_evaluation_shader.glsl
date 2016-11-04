@@ -6,6 +6,7 @@ in vec2 tc_control_2[];
 in float tc_edge[];
 in vec3 tc_color[];
 in vec3 tc_stroke_color[];
+in int  tc_do_fill[];
 
 out vec3 te_bary;
 out vec3 te_edge;
@@ -14,6 +15,7 @@ out vec2 te_tan_ab;
 out vec2 te_tan_bc;
 out vec2 te_tan_ca;
 out vec3 te_stroke_color;
+out int  te_do_fill;
 
 void main() {
 
@@ -54,5 +56,6 @@ void main() {
     te_edge = vec3(tc_edge[0], tc_edge[1], tc_edge[2]);
     te_color = tc_color[0];
     te_stroke_color = tc_stroke_color[0];
+    te_do_fill = tc_do_fill[0];
 }
 

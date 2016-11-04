@@ -65,13 +65,15 @@ fn main() {
         (0.0f32, 0.0f32, 0.3f32), (0.3f32, 0.7f32, 0.0f32)];
     let thicknesses = [5, 10, 20, 50];
 
+    let mut do_fill = true;
     for i in 0..sqrt_size {
         let delta_x = 100 + wx * (i as i32) / (sqrt_size as i32);
         for j in 0..sqrt_size {
             let delta_y = 100 + wy * (j as i32) / (sqrt_size as i32);
             drawing.add_filled_path
                 (make_shape(delta_x as f32, delta_y as f32,
-                            colors[idx], stroke_colors[idx], thicknesses[idx])).unwrap();
+                            colors[idx], stroke_colors[idx], thicknesses[idx]), do_fill).unwrap();
+            do_fill = !do_fill;
             idx += 1;
             if idx > 3 { idx = 0; }
         }

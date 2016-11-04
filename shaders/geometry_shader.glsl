@@ -8,6 +8,8 @@ in vec2 te_tan_ab[];
 in vec2 te_tan_bc[];
 in vec2 te_tan_ca[];
 
+in int te_do_fill[];
+
 in vec3 te_stroke_color[];
 
 out vec3 g_color;
@@ -50,19 +52,21 @@ void main() {
     vec3 v1 = gl_in[1].gl_Position.xyz;
     vec3 v2 = gl_in[2].gl_Position.xyz;
 
-    g_color = te_color[0];
-    gl_Position = vec4(v0, 1);
-    EmitVertex();
+    if (te_do_fill[0] > 0) {
+        g_color = te_color[0];
+        gl_Position = vec4(v0, 1);
+        EmitVertex();
 
-    g_color = te_color[1];
-    gl_Position = vec4(v1, 1);
-    EmitVertex();
+        g_color = te_color[1];
+        gl_Position = vec4(v1, 1);
+        EmitVertex();
 
-    g_color = te_color[2];
-    gl_Position = vec4(v2, 1);
-    EmitVertex();
+        g_color = te_color[2];
+        gl_Position = vec4(v2, 1);
+        EmitVertex();
 
-    EndPrimitive();
+        EndPrimitive();
+    }
 
     float depth = v0.z - 1.0e-6;
     vec3 stroke_color = te_stroke_color[0];
