@@ -27,7 +27,7 @@ fn make_shape(off_x: f32, off_y: f32, fill_color: Option<(f32, f32, f32)>,
         add_straight_line(d).
         set_stroke(stroke_color.0, stroke_color.1, stroke_color.2, stroke_width);
     if let Some(fill_color) = fill_color {
-        path.set_fill_color(fill_color.0, fill_color.1, fill_color.2)
+        path.set_fill_color(fill_color.0, fill_color.1, fill_color.2).close_path()
     } else {
         path
     }
@@ -58,7 +58,7 @@ fn main() {
             0.4, 0.5, 0.6).unwrap();
 
     let mut idx = 0usize;
-    let sqrt_size = 2u32;
+    let sqrt_size = 5u32;
     let num_shapes = sqrt_size * sqrt_size;
     let wx = window_size.0 as i32 - 300i32;
     let wy = window_size.1 as i32 - 300i32;

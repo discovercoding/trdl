@@ -22,6 +22,7 @@ pub enum TrdlError {
     InvalidLinkError,
     NotEnoughVertices,
     NonSimplePolygon,
+    NoVisibleGeometry,
 }
 
 impl fmt::Display for TrdlError {
@@ -35,6 +36,7 @@ impl fmt::Display for TrdlError {
             TrdlError::InvalidLinkError => write!(f, "{}", self.description()),
             TrdlError::NotEnoughVertices => write!(f, "{}", self.description()),
             TrdlError::NonSimplePolygon => write!(f, "{}", self.description()),
+            TrdlError::NoVisibleGeometry => write!(f, "{}", self.description()),
         }
     }
 }
@@ -49,7 +51,8 @@ impl std::error::Error for TrdlError {
             TrdlError::LinkError(ref message) => message,
             TrdlError::InvalidLinkError => "An error occurred during shader program link",
             TrdlError::NotEnoughVertices => "A polygon must have 3 or more points",
-            TrdlError::NonSimplePolygon => "Error triangulating polygon, is it non-simple?"
+            TrdlError::NonSimplePolygon => "Error triangulating polygon, is it non-simple?",
+            TrdlError::NoVisibleGeometry => "Either the stroke or fill (or both) must be set"
         }
     }
 
@@ -62,7 +65,8 @@ impl std::error::Error for TrdlError {
             TrdlError::LinkError(_) => None,
             TrdlError::InvalidLinkError => None,
             TrdlError::NotEnoughVertices => None,
-            TrdlError::NonSimplePolygon => None
+            TrdlError::NonSimplePolygon => None,
+            TrdlError::NoVisibleGeometry => None
         }
     }
 }

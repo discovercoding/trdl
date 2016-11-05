@@ -33,20 +33,21 @@ pub struct Path {
     control_point_1s: Vec<Option<(f32, f32)>>,
     control_point_2s: Vec<Option<(f32, f32)>>,
     fill_color: Option<[f32; 3]>,
-    stroke: Option<([f32; 3], u32)>
+    stroke: Option<([f32; 3], u32)>,
+    is_closed: bool
 }
 
 impl Path {
     pub fn new() -> Self {
         Path { vertices: Vec::new(), control_point_1s: Vec::new(),
-            control_point_2s: Vec::new(), fill_color: None, stroke: None }
+            control_point_2s: Vec::new(), fill_color: None, stroke: None, is_closed: false }
     }
 
     pub fn with_num_vertices(num_vertices: usize) -> Self {
         Path { vertices: Vec::with_capacity(num_vertices),
             control_point_1s: Vec::with_capacity(num_vertices),
             control_point_2s: Vec::with_capacity(num_vertices),
-            fill_color: None, stroke: None }
+            fill_color: None, stroke: None, is_closed: false }
     }
 
     pub fn add_bezier_curve(mut self, start_point: (f32, f32),
@@ -82,6 +83,11 @@ impl Path {
 
     pub fn clear_stroke(mut self) -> Self {
         self.stroke = None;
+        self
+    }
+
+    pub fn close_path(mut self) -> Self {
+        self.is_closed = true;
         self
     }
 }
@@ -234,6 +240,14 @@ impl<'a, W: Window> Drawing<'a, W> {
 
     pub fn add_path(&mut self, path: Path) -> Result<(), TrdlError> {
         self.remake = true;
+        if path.is_closed {
+            self.add_closed_path(path)
+        } else {
+            self.add_open_path(path)
+        }
+    }
+
+    fn add_closed_path(&mut self, path: Path) -> Result<(), TrdlError> {
         let mut control_point_map = HashMap::new();
         let last = path.vertices.len() - 1;
         for i in 0..last {
@@ -314,6 +328,107 @@ impl<'a, W: Window> Drawing<'a, W> {
                 self.do_fill.push(0 as GLint);
                 self.do_fill.push(0 as GLint);
                 self.do_fill.push(0 as GLint);
+            }
+        }
+        Ok(())
+    }
+
+    fn make_extra_point(p0: (f32, f32), p1: (f32, f32)) -> Result<(f32, f32), TrdlError> {
+        let offset = 5f32;
+        if p1.0 > p0.0 {
+            // x1 > x0
+            if p1.1 > p0.1 {
+                // y1 > y0
+                Ok(((p0.0 + p1.0) / 2f32, p1.1))
+            } else if p1.1 < p0.1 {
+                // y1 < y0
+                Ok(((p0.0 + p1.0) / 2f32, p0.1))
+            } else {
+                // y1 == y0
+                Ok(((p0.0 + p1.0) / 2f32, p0.1 + offset))
+            }
+        } else if p1.0 < p0.0 {
+            // x1 < x0
+            if p1.1 > p0.1 {
+                // y1 > y0
+                Ok(((p0.0 + p1.0) / 2f32, p0.1))
+            } else if p1.1 < p0.1 {
+                // y1 < y0
+                Ok(((p0.0 + p1.0) / 2f32, p1.1))
+            } else {
+                // y1 == y0
+                Ok(((p0.0 + p1.0) / 2f32, p0.1 - offset))
+            }
+        } else {
+            // x1 == x0
+            if p1.1 > p0.1 {
+                // y1 > y0
+                Ok((p0.0 - offset, (p0.1 + p1.1) / 2f32))
+            } else if p1.1 < p0.1 {
+                // y1 < y0
+                Ok((p0.0 + offset, (p0.1 + p1.1) / 2f32))
+            } else {
+                // y1 == y0
+                Err(TrdlError::NonSimplePolygon)
+            }
+        }
+    }
+
+    fn add_open_path(&mut self, path: Path) -> Result<(), TrdlError> {
+
+        if path.stroke == None {
+            return Err(TrdlError::NoVisibleGeometry);
+        }
+
+        self.num_tris = path.vertices.len() - 1;
+
+        self.vertices.reserve(9 * self.num_tris);
+        self.control_point_1s.reserve(6 * self.num_tris);
+        self.control_point_2s.reserve(6 * self.num_tris);
+        self.fill_colors.append(&mut vec![gl!(0); 9 * self.num_tris]);
+        self.stroke_colors.reserve(9 * self.num_tris);
+        self.stroke_edges.reserve(3 * self.num_tris);
+        self.do_fill.append(&mut vec![0 as GLint; 3 * self.num_tris]);
+
+        self.depth_idx += 1;
+        let depth = (self.depth_idx as f32) / MAX_DEPTH;
+
+        for i in 0..self.num_tris {
+            let v0 = path.vertices[i];
+            let v1 = path.vertices[i + 1];
+            let v2 = try!(Self::make_extra_point(v0, v1));
+            self.vertices.push(v0.0); self.vertices.push(v0.1); self.vertices.push(depth);
+            self.vertices.push(v1.0); self.vertices.push(v1.1); self.vertices.push(depth);
+            self.vertices.push(v2.0); self.vertices.push(v2.1); self.vertices.push(depth);
+
+            if let Some(cp1) = path.control_point_1s[i] {
+                self.control_point_1s.push(cp1.0); self.control_point_1s.push(cp1.1);
+                if let Some(cp2) = path.control_point_2s[i] {
+                    self.control_point_2s.push(cp2.0); self.control_point_2s.push(cp2.1);
+                } else {
+                    panic!("Inconsistent control points");
+                }
+            } else {
+                let (cp1, cp2) = bezier_line_control_points(v0, v1);
+                self.control_point_1s.push(cp1.0); self.control_point_1s.push(cp1.1);
+                self.control_point_2s.push(cp2.0); self.control_point_2s.push(cp2.1);
+            }
+
+            let (cp1, cp2) = bezier_line_control_points(v1, v2);
+            self.control_point_1s.push(cp1.0); self.control_point_1s.push(cp1.1);
+            self.control_point_2s.push(cp2.0); self.control_point_2s.push(cp2.1);
+
+            let (cp1, cp2) = bezier_line_control_points(v2, v0);
+            self.control_point_1s.push(cp1.0); self.control_point_1s.push(cp1.1);
+            self.control_point_2s.push(cp2.0); self.control_point_2s.push(cp2.1);
+
+            if let Some((stroke_color, stroke_thickness)) = path.stroke {
+                push3(&mut self.stroke_colors, stroke_color);
+                self.stroke_edges.push(gl!(0));
+                self.stroke_edges.push(gl!(0));
+                self.stroke_edges.push(gl!(stroke_thickness));
+            } else {
+                unreachable!()
             }
         }
         Ok(())
