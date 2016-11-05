@@ -3,8 +3,8 @@ extern crate trdl;
 
 use std::os::raw::c_void;
 
-fn make_shape(off_x: f32, off_y: f32, fill_color: (f32, f32, f32),
-              stroke_color: (f32, f32, f32), stroke_width: u32) -> (trdl::FilledPath) {
+fn make_shape(off_x: f32, off_y: f32, fill_color: Option<(f32, f32, f32)>,
+              stroke_color: (f32, f32, f32), stroke_width: u32) -> trdl::Path {
 //    let a0 = (150f32 + off_x, 150f32 + off_y);
 //    let b0 = (300f32 + off_x, 200f32 + off_y);
 //    let bc1 = (350f32 + off_x, 250f32 + off_y);
@@ -20,13 +20,17 @@ fn make_shape(off_x: f32, off_y: f32, fill_color: (f32, f32, f32),
     let c = (200f32 + off_x, 200f32 + off_y);
     let d = (  0f32 + off_x, 200f32 + off_y);
 
-    trdl::FilledPath::with_num_vertices(4).
+    let path = trdl::Path::with_num_vertices(4).
         add_straight_line(a).
         add_straight_line(b).
         add_straight_line(c).
         add_straight_line(d).
-        set_fill_color(fill_color.0, fill_color.1, fill_color.2).
-        set_stroke(stroke_color.0, stroke_color.1, stroke_color.2, stroke_width)
+        set_stroke(stroke_color.0, stroke_color.1, stroke_color.2, stroke_width);
+    if let Some(fill_color) = fill_color {
+        path.set_fill_color(fill_color.0, fill_color.1, fill_color.2)
+    } else {
+        path
+    }
 }
 
 struct Window {
@@ -70,9 +74,10 @@ fn main() {
         let delta_x = 100 + wx * (i as i32) / (sqrt_size as i32);
         for j in 0..sqrt_size {
             let delta_y = 100 + wy * (j as i32) / (sqrt_size as i32);
-            drawing.add_filled_path
+            let fill_color = if do_fill { Some(colors[idx]) } else { None };
+            drawing.add_path
                 (make_shape(delta_x as f32, delta_y as f32,
-                            colors[idx], stroke_colors[idx], thicknesses[idx]), do_fill).unwrap();
+                            fill_color, stroke_colors[idx], thicknesses[idx])).unwrap();
             do_fill = !do_fill;
             idx += 1;
             if idx > 3 { idx = 0; }

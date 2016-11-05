@@ -5,7 +5,7 @@ mod gl2d;
 
 pub use gl2d::drawing::Window;
 pub use gl2d::drawing::Drawing;
-pub use gl2d::drawing::FilledPath;
+pub use gl2d::drawing::Path;
 
 use std::io;
 use std::error::Error;

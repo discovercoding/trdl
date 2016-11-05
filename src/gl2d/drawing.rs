@@ -28,28 +28,29 @@ pub trait Window {
     fn load_fn(&self, addr: &str) -> *const c_void;
 }
 
-pub struct FilledPath {
+pub struct Path {
     vertices: Vec<(f32, f32)>,
     control_point_1s: Vec<Option<(f32, f32)>>,
     control_point_2s: Vec<Option<(f32, f32)>>,
-    fill_color: [f32; 3],
+    fill_color: Option<[f32; 3]>,
     stroke: Option<([f32; 3], u32)>
 }
 
-impl FilledPath {
+impl Path {
     pub fn new() -> Self {
-        FilledPath { vertices: Vec::new(), control_point_1s: Vec::new(),
-            control_point_2s: Vec::new(), fill_color: [1f32, 1f32, 1f32], stroke: None }
+        Path { vertices: Vec::new(), control_point_1s: Vec::new(),
+            control_point_2s: Vec::new(), fill_color: None, stroke: None }
     }
 
     pub fn with_num_vertices(num_vertices: usize) -> Self {
-        FilledPath { vertices: Vec::with_capacity(num_vertices),
+        Path { vertices: Vec::with_capacity(num_vertices),
             control_point_1s: Vec::with_capacity(num_vertices),
             control_point_2s: Vec::with_capacity(num_vertices),
-            fill_color: [1f32, 1f32, 1f32], stroke: None }
+            fill_color: None, stroke: None }
     }
 
-    pub fn add_bezier_curve(mut self, start_point: (f32, f32), control_point_1: (f32, f32), control_point_2: (f32, f32)) -> Self {
+    pub fn add_bezier_curve(mut self, start_point: (f32, f32),
+                            control_point_1: (f32, f32), control_point_2: (f32, f32)) -> Self {
         self.vertices.push(start_point);
         self.control_point_1s.push(Some(control_point_1));
         self.control_point_2s.push(Some(control_point_2));
@@ -64,7 +65,12 @@ impl FilledPath {
     }
 
     pub fn set_fill_color(mut self, red: f32, green: f32, blue: f32) -> Self {
-        self.fill_color = [red as GLfloat, green as GLfloat, blue as GLfloat];
+        self.fill_color = Some([red as GLfloat, green as GLfloat, blue as GLfloat]);
+        self
+    }
+
+    pub fn clear_fill_color(mut self) -> Self {
+        self.fill_color = None;
         self
     }
 
@@ -226,7 +232,7 @@ impl<'a, W: Window> Drawing<'a, W> {
         }
     }
 
-    pub fn add_filled_path(&mut self, path: FilledPath, do_fill: bool) -> Result<(), TrdlError> {
+    pub fn add_path(&mut self, path: Path) -> Result<(), TrdlError> {
         self.remake = true;
         let mut control_point_map = HashMap::new();
         let last = path.vertices.len() - 1;
@@ -281,7 +287,6 @@ impl<'a, W: Window> Drawing<'a, W> {
             get_control_points(&path.vertices, indices[ti2], indices[ti0], depth,
                                &mut control_point_map, &mut self.vertices,
                                &mut self.control_point_1s, &mut self.control_point_2s);
-            push3(&mut self.fill_colors, path.fill_color);
             if let Some(stroke) = path.stroke {
                 push3(&mut self.stroke_colors, stroke.0);
                 let thickness = gl!(stroke.1);
@@ -298,12 +303,14 @@ impl<'a, W: Window> Drawing<'a, W> {
                 self.stroke_edges.push(ZERO);
                 self.stroke_edges.push(ZERO);
             }
-            if do_fill {
+            if let Some(fill_color) = path.fill_color {
+                push3(&mut self.fill_colors, fill_color);
                 self.do_fill.push(1 as GLint);
                 self.do_fill.push(1 as GLint);
                 self.do_fill.push(1 as GLint);
 
             } else {
+                push3(&mut self.fill_colors, [ZERO, ZERO, ZERO]);
                 self.do_fill.push(0 as GLint);
                 self.do_fill.push(0 as GLint);
                 self.do_fill.push(0 as GLint);
