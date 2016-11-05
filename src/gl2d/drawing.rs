@@ -269,11 +269,6 @@ impl<'a, W: Window> Drawing<'a, W> {
 
         let indices = try!(triangulate(&path.vertices));
 
-        for i in &indices {
-            println!("i = {}; v = ({}, {})", i, path.vertices[*i].0, path.vertices[*i].1);
-        }
-
-
         self.num_tris = indices.len() / 3;
 
         self.vertices.reserve(9 * self.num_tris);
@@ -305,9 +300,6 @@ impl<'a, W: Window> Drawing<'a, W> {
                 push3(&mut self.stroke_colors, stroke.0);
                 let thickness = gl!(stroke.1);
                 let (e0, e1, e2) = triangle_edges(indices[ti0], indices[ti1], indices[ti2], num_verts-1);
-                println!("{}->{}: {}", indices[ti0], indices[ti1], if e2 { "HAS edge" } else {" has NO edge" });
-                println!("{}->{}: {}", indices[ti1], indices[ti2], if e0 { "HAS edge" } else {" has NO edge" });
-                println!("{}->{}: {}", indices[ti2], indices[ti0], if e1 { "HAS edge" } else {" has NO edge" });
                 self.stroke_edges.push(if e0 {thickness} else {ZERO});
                 self.stroke_edges.push(if e1 {thickness} else {ZERO});
                 self.stroke_edges.push(if e2 {thickness} else {ZERO});
