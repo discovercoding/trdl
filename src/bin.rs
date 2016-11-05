@@ -5,32 +5,41 @@ use std::os::raw::c_void;
 
 fn make_shape(off_x: f32, off_y: f32, fill_color: Option<(f32, f32, f32)>,
               stroke_color: (f32, f32, f32), stroke_width: u32) -> trdl::Path {
-//    let a0 = (150f32 + off_x, 150f32 + off_y);
-//    let b0 = (300f32 + off_x, 200f32 + off_y);
-//    let bc1 = (350f32 + off_x, 250f32 + off_y);
-//    let bc2 = (200f32 + off_x, 250f32 + off_y);
-//    let c0 = (200f32 + off_x, 300f32 + off_y);
-//    let d0 = (50f32 + off_x, 100f32 + off_y);
-//    let de1 = (0f32 + off_x, 50f32 + off_y);
-//    let de2 = (50f32 + off_x, 0f32 + off_y);
-//    let e0 = (150f32 + off_x, 0f32 + off_y);
+    let a0 = (150f32 + off_x, 150f32 + off_y);
+    let b0 = (300f32 + off_x, 200f32 + off_y);
+    let bc1 = (350f32 + off_x, 250f32 + off_y);
+    let bc2 = (200f32 + off_x, 250f32 + off_y);
+    let c0 = (200f32 + off_x, 300f32 + off_y);
+    let d0 = (50f32 + off_x, 100f32 + off_y);
+    let de1 = (0f32 + off_x, 50f32 + off_y);
+    let de2 = (50f32 + off_x, 0f32 + off_y);
+    let e0 = (150f32 + off_x, 0f32 + off_y);
 
-    let a = (  0f32 + off_x, 0f32   + off_y);
-    let b = (200f32 + off_x, 0f32   + off_y);
-    let c = (200f32 + off_x, 200f32 + off_y);
-    let d = (  0f32 + off_x, 200f32 + off_y);
+    trdl::Path::with_num_vertices(a0, 5).
+        line_to(b0).
+        curve_to(bc1, bc2, c0).
+        line_to(d0).
+        curve_to(de1, de2, e0).
+        // line_to(a0). // automatic, but allowed
+        close_path().
+        set_stroke(stroke_color.0, stroke_color.1, stroke_color.2, stroke_width)
 
-    let path = trdl::Path::with_num_vertices(4).
-        add_straight_line(a).
-        add_straight_line(b).
-        add_straight_line(c).
-        add_straight_line(d).
-        set_stroke(stroke_color.0, stroke_color.1, stroke_color.2, stroke_width);
-    if let Some(fill_color) = fill_color {
-        path.set_fill_color(fill_color.0, fill_color.1, fill_color.2).close_path()
-    } else {
-        path
-    }
+//    let a = (  0f32 + off_x, 0f32   + off_y);
+//    let b = (200f32 + off_x, 0f32   + off_y);
+//    let c = (200f32 + off_x, 200f32 + off_y);
+//    let d = (  0f32 + off_x, 200f32 + off_y);
+
+//    let path = trdl::Path::with_num_vertices(4).
+//        add_straight_line(a).
+//        add_straight_line(b).
+//        add_straight_line(c).
+//        add_straight_line(d).
+//        set_stroke(stroke_color.0, stroke_color.1, stroke_color.2, stroke_width);
+//    if let Some(fill_color) = fill_color {
+//        path.set_fill_color(fill_color.0, fill_color.1, fill_color.2).close_path()
+//    } else {
+//        path
+//    }
 }
 
 struct Window {
@@ -84,11 +93,10 @@ fn main() {
         }
     }
     drawing.draw();
+    window.w.swap_buffers().unwrap();
     for event in window.w.wait_events() {
         if let glutin::Event::Closed = event {
             break;
         }
-        drawing.draw();
-        window.w.swap_buffers().unwrap();
     }
 }

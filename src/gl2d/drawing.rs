@@ -38,30 +38,45 @@ pub struct Path {
 }
 
 impl Path {
-    pub fn new() -> Self {
-        Path { vertices: Vec::new(), control_point_1s: Vec::new(),
-            control_point_2s: Vec::new(), fill_color: None, stroke: None, is_closed: false }
+    pub fn new(start: (f32, f32)) -> Self {
+        let mut path = Path { vertices: Vec::new(), control_point_1s: Vec::new(),
+            control_point_2s: Vec::new(), fill_color: None, stroke: None, is_closed: false };
+        path.vertices.push(start);
+        path
     }
 
-    pub fn with_num_vertices(num_vertices: usize) -> Self {
-        Path { vertices: Vec::with_capacity(num_vertices),
+    pub fn with_num_vertices(start: (f32, f32), num_vertices: usize) -> Self {
+        let mut path = Path { vertices: Vec::with_capacity(num_vertices),
             control_point_1s: Vec::with_capacity(num_vertices),
             control_point_2s: Vec::with_capacity(num_vertices),
-            fill_color: None, stroke: None, is_closed: false }
+            fill_color: None, stroke: None, is_closed: false };
+        path.vertices.push(start);
+        path
     }
 
-    pub fn add_bezier_curve(mut self, start_point: (f32, f32),
-                            control_point_1: (f32, f32), control_point_2: (f32, f32)) -> Self {
-        self.vertices.push(start_point);
+    pub fn curve_to(mut self, control_point_1: (f32, f32), control_point_2: (f32, f32),
+                    end_point: (f32, f32),) -> Self {
         self.control_point_1s.push(Some(control_point_1));
         self.control_point_2s.push(Some(control_point_2));
+        self.vertices.push(end_point);
         self
     }
 
-    pub fn add_straight_line(mut self, start_point: (f32, f32)) -> Self {
-        self.vertices.push(start_point);
+    pub fn line_to(mut self, end_point: (f32, f32)) -> Self {
         self.control_point_1s.push(None);
         self.control_point_2s.push(None);
+        self.vertices.push(end_point);
+        self
+    }
+
+    pub fn close_path(mut self) -> Self {
+        self.is_closed = true;
+        if self.vertices[0] == self.vertices[self.vertices.len()-1] {
+            self.vertices.pop();
+        } else {
+            self.control_point_1s.push(None);
+            self.control_point_2s.push(None);
+        }
         self
     }
 
@@ -76,18 +91,12 @@ impl Path {
     }
 
     pub fn set_stroke(mut self, red: f32, green: f32, blue: f32, thickness: u32) -> Self {
-        self.stroke = Some(([red as GLfloat, green as GLfloat, blue as GLfloat],
-                                 thickness));
+        self.stroke = Some(([red as GLfloat, green as GLfloat, blue as GLfloat], thickness));
         self
     }
 
     pub fn clear_stroke(mut self) -> Self {
         self.stroke = None;
-        self
-    }
-
-    pub fn close_path(mut self) -> Self {
-        self.is_closed = true;
         self
     }
 }
