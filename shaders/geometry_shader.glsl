@@ -28,18 +28,18 @@ int is_edge(vec3 bary1, vec3 bary2, vec3 edges) {
 
 void make_edge(vec2 p0, vec2 p1, float depth, vec2 tan0, vec2 tan1, vec2 thickness, vec3 color) {
     tan0 = normalize(tan0);
-    vec2 perp0 = vec2(-tan0.y, tan0.x) * 2 * thickness;
+    vec2 perp0 = vec2(-tan0.y, tan0.x) * thickness;
     tan1 = normalize(tan1);
-    vec2 perp1 = vec2(-tan1.y, tan1.x) * 2 * thickness;
+    vec2 perp1 = vec2(-tan1.y, tan1.x) * thickness;
 
     g_color = color;
-    gl_Position = vec4(p0, depth, 1);
+    gl_Position = vec4(p0 - perp0, depth, 1);
     EmitVertex();
     g_color = color;
     gl_Position = vec4(p0 + perp0, depth, 1);
     EmitVertex();
     g_color = color;
-    gl_Position = vec4(p1, depth, 1);
+    gl_Position = vec4(p1 - perp1, depth, 1);
     EmitVertex();
     g_color = color;
     gl_Position = vec4(p1 + perp1, depth, 1);
