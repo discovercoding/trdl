@@ -46,15 +46,6 @@ impl Path {
         path
     }
 
-    pub fn with_num_vertices(start: (f32, f32), num_vertices: usize) -> Self {
-        let mut path = Path { vertices: Vec::with_capacity(num_vertices),
-            control_point_1s: Vec::with_capacity(num_vertices),
-            control_point_2s: Vec::with_capacity(num_vertices),
-            fill_color: None, stroke: None, is_closed: false };
-        path.vertices.push(start);
-        path
-    }
-
     pub fn line_to(mut self, end_point: (f32, f32)) -> Self {
         self.control_point_1s.push(None);
         self.control_point_2s.push(None);
