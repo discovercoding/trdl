@@ -7,6 +7,7 @@ use std::io::prelude::*;
 use std::fs::File;
 use std::collections::hash_map::HashMap;
 use std::os::raw::c_void;
+use std::f32;
 use gl::types::*;
 use super::shader;
 use super::super::triangulation::triangulate;
@@ -54,6 +55,13 @@ impl Path {
         path
     }
 
+    pub fn line_to(mut self, end_point: (f32, f32)) -> Self {
+        self.control_point_1s.push(None);
+        self.control_point_2s.push(None);
+        self.vertices.push(end_point);
+        self
+    }
+
     pub fn curve_to(mut self, control_point_1: (f32, f32), control_point_2: (f32, f32),
                     end_point: (f32, f32),) -> Self {
         self.control_point_1s.push(Some(control_point_1));
@@ -62,11 +70,223 @@ impl Path {
         self
     }
 
-    pub fn line_to(mut self, end_point: (f32, f32)) -> Self {
-        self.control_point_1s.push(None);
-        self.control_point_2s.push(None);
-        self.vertices.push(end_point);
+    fn print_points(points: &Vec<(f32, f32)>) {
+        println!("Points:");
+        for p in points {
+            println!("  ({}, {})", p.0, p.1);
+        }
+        println!("");
+    }
+
+    pub fn arc_to(mut self, x_radius: f32, y_radius: f32, angle: f32, end_point: (f32, f32),
+              is_large_arc: bool, is_positive_sweep: bool) -> Self {
+        if let Ok((center, mut start_angle, mut sweep_angle)) =
+            self.get_ellipse_params(x_radius, y_radius, angle, end_point,
+                                    is_large_arc, is_positive_sweep) {
+              // approximate a circular arc (radius = x_radius) with Bezier splines
+
+            // break it into quarter-circle arcs
+            let mut num_arcs = (sweep_angle.abs() / f32::consts::FRAC_PI_2).floor() as usize;
+            // and 1 less than 90 degree arc
+            println!("num_arcs is {}", num_arcs);
+            let remainder = sweep_angle.abs() - f32::consts::FRAC_PI_2 * (num_arcs as f32);
+            println!("remainder is {}", remainder);
+            let mut points = Self::quarter_circle(x_radius, num_arcs, sweep_angle >= 0f32);
+            if remainder > 0f32 {
+                points.append(&mut Self::less_than_quarter_circle(x_radius, remainder, num_arcs,
+                                                                  sweep_angle >= 0f32));
+                num_arcs += 1;
+            }
+            Self::print_points(&points);
+            // now make the circular arc start at the right place
+            Self::rotate_points(&mut points, start_angle);
+            Self::print_points(&points);
+            // now make it into an ellipse
+            let scale = y_radius / x_radius;
+            for p in &mut points {
+                *p = (p.0, p.1 * scale);
+            }
+            Self::print_points(&points);
+            // rotate the ellipse
+            Self::rotate_points(&mut points, angle);
+            // center it in the correct location
+            for p in &mut points {
+                let x = p.0;
+                let y = p.1;
+                *p = (x + center.0, y + center.1);
+            }
+            Self::print_points(&points);
+            // add the curves
+            for i in 0..num_arcs {
+                let k = (i * 3) as usize;
+                self = self.curve_to(points[k], points[k + 1], points[k + 2]);
+            }
+        } else {
+            self = self.line_to(end_point);
+        }
         self
+    }
+
+    fn get_ellipse_params(&mut self, x_radius: f32, y_radius: f32, angle: f32, end_point: (f32, f32),
+                          is_large_arc: bool, is_positive_sweep: bool) ->
+                          Result<((f32, f32), f32, f32), TrdlError> {
+        // math taken from https://www.w3.org/TR/SVG/implnote.html#ArcImplementationNotes
+        // up to the point where we get the center point.
+        let start_point = self.vertices[self.vertices.len() - 1];
+        let xt = (start_point.0 - end_point.0) / 2f32;
+        let yt = (start_point.1 - end_point.1) / 2f32;
+        let cos_phi = angle.cos();
+        let sin_phi = angle.sin();
+        let x = cos_phi * xt + sin_phi * yt;
+        let y = -sin_phi * xt + cos_phi * yt;
+        let x_sq = x * x;
+        let y_sq = y * y;
+
+        let (x_radius, y_radius) = try!(Self::fix_radii(x_radius, y_radius, x, y));
+        println!("fixed radii: {}, {}", x_radius, y_radius);
+
+        let rx_sq = x_radius * x_radius;
+        let ry_sq = y_radius * y_radius;
+        let xt = x_radius * y / y_radius;
+        let yt = -y_radius * x / x_radius;
+
+        let mut radical = ((rx_sq*ry_sq - rx_sq*y_sq - ry_sq*x_sq) /
+                       (rx_sq*y_sq + ry_sq*x_sq)).sqrt();
+        println!("radical: {}", radical);
+        if is_large_arc == is_positive_sweep {
+            radical = -radical;
+        }
+        println!("radical: {}", radical);
+        println!("(xt, yt) = ({}, {})", xt, yt);
+        let cxt = radical * xt;
+        let cyt = radical * yt;
+        println!("center': ({}, {})", cxt, cyt);
+        let xt = (start_point.0 + end_point.0) / 2f32;
+        let yt = (start_point.1 + end_point.1) / 2f32;
+
+        let cx = cos_phi*cxt - sin_phi*cyt + xt;
+        let cy = sin_phi*cxt + cos_phi*cyt + yt;
+        println!("center: ({}, {})", cx, cy);
+
+        let xt = (x - cxt) / x_radius;
+        let yt = (y - cyt) / y_radius;
+        let xt2 = (-x - cxt) / x_radius;
+        let yt2 = (-y - cyt) / y_radius;
+
+        let start_angle = Self::get_angle(1f32, 0f32, xt, yt);
+        let mut sweep_angle = Self::get_angle(xt, yt, xt2, yt2);
+        println!("start_angle: {}; sweep_angle: {}", start_angle, sweep_angle);
+
+        if is_positive_sweep && sweep_angle < 0f32 {
+            sweep_angle += 2f32*f32::consts::PI;
+        } else if !is_positive_sweep && sweep_angle > 0f32 {
+            sweep_angle -= 2f32*f32::consts::PI;
+        }
+        println!("start_angle: {}; sweep_angle: {}", start_angle, sweep_angle);
+        Ok(((cx, cy), start_angle, sweep_angle))
+    }
+
+    fn fix_radii(x_radius: f32, y_radius: f32, x_sq: f32, y_sq: f32) -> Result<(f32, f32), TrdlError> {
+        if x_radius == 0f32 || y_radius == 0f32 { return Err(TrdlError::ArcToIsLineTo); }
+        let x_radius = x_radius.abs();
+        let y_radius = y_radius.abs();
+        let gamma = x_sq / (x_radius * x_radius) + y_sq / (y_radius * y_radius);
+        if gamma < 1f32 {
+            Ok((x_radius, y_radius))
+        } else {
+            let gamma = gamma.sqrt();
+            Ok((x_radius * gamma, y_radius * gamma))
+        }
+    }
+
+    fn get_angle(ux: f32, uy: f32, vx: f32, vy: f32) -> f32 {
+        let u_mag = (ux*ux + uy*uy).sqrt();
+        let v_mag = (vx*vx + vy*vy).sqrt();
+        let arg = (ux*vx + uy*vy) / (u_mag * v_mag);
+        let angle = arg.acos();
+        if ux*vy-uy*vx < 0f32 {
+            -angle
+        } else {
+            angle
+        }
+    }
+
+    fn quarter_circle(radius: f32, num_quadrants: usize,
+                      is_positive_sweep: bool) -> Vec<(f32, f32)> {
+        // math is from http://pomax.github.io/bezierinfo/#circles_cubic
+        let magic =  radius * 0.5522847498308; // 4f32 * (2f32.sqrt() - 1f32) / 3f32;
+
+        let mut result = Vec::with_capacity(4 * num_quadrants);
+        if is_positive_sweep {
+            result.append(&mut vec![(radius, magic), (magic, radius), (0f32, radius)]);
+            if num_quadrants > 1 {
+                result.append(&mut vec![(-magic, radius), (-radius, magic), (-radius, 0f32)]);
+            }
+            if num_quadrants > 2 {
+                result.append(&mut vec![(-radius, -magic), (-magic, -radius), (0f32, -radius)]);
+            }
+            if num_quadrants > 3 {
+                result.append(&mut vec![(magic, -radius), (radius, -magic), (0f32, -radius)]);
+            }
+        } else {
+            result.append(&mut vec![(radius, -magic), (magic, -radius), (0f32, -radius)]);
+            if num_quadrants > 1 {
+                result.append(&mut vec![(-magic, -radius), (-radius, -magic), (-radius, 0f32)]);
+            }
+            if num_quadrants > 2 {
+                result.append(&mut vec![(-radius, magic), (-magic, radius), (0f32, radius)]);
+            }
+            if num_quadrants > 3 {
+                result.append(&mut vec![(magic, radius), (radius, magic), (0f32, radius)]);
+            }
+        }
+        result
+    }
+
+    fn less_than_quarter_circle(radius: f32, angle: f32, quadrant: usize,
+                                is_positive_sweep: bool) -> Vec<(f32, f32)> {
+        // math is from http://pomax.github.io/bezierinfo/#circles_cubic
+        let s = angle.sin();
+        let c = angle.cos();
+        println!("sin = {}; cos = {}", s, c);
+        let f = 4f32 / 3f32 * (angle / 4f32).tan();
+        println!("f = {}", f);
+        let th1 = c + f*s;
+        let th2 = s - f*c;
+        println!("th = ({}, {})", th1, th2);
+
+        println!("quadrant: {}", quadrant);
+        if is_positive_sweep {
+            if quadrant == 0 {
+                vec![(radius, f * radius), (th1 * radius, th2 * radius), (c * radius, s * radius)]
+            } else if quadrant == 1 {
+                vec![(-f * radius, radius), (-th2 * radius, th1 * radius), (-s * radius, c * radius)]
+            } else if quadrant == 2 {
+                vec![(-radius, -f * radius), (-th1 * radius, -th2 * radius), (-c * radius, -s * radius)]
+            } else {
+                vec![(f * radius, -radius), (th2 * radius, -th1 * radius), (s * radius, -c * radius)]
+            }
+        } else {
+            if quadrant == 0 {
+                vec![(radius, -f * radius), (th1 * radius, -th2 * radius), (c * radius, -s * radius)]
+            } else if quadrant == 1 {
+                vec![(-f * radius, -radius), (-th2 * radius, -th1 * radius), (-s * radius, -c * radius)]
+            } else if quadrant == 2 {
+                vec![(-radius, f * radius), (-th1 * radius, th2 * radius), (-c * radius, s * radius)]
+            } else {
+                vec![(f * radius, radius), (th2 * radius, th1 * radius), (s * radius, c * radius)]
+            }
+        }
+    }
+
+    fn rotate_points(points: &mut Vec<(f32, f32)>, angle: f32) {
+        let cos_angle = angle.cos();
+        let sin_angle = angle.sin();
+        for p in points {
+            let x = p.0;
+            let y = p.1;
+            *p = (cos_angle*x - sin_angle*y, sin_angle*x + cos_angle*y);
+        }
     }
 
     pub fn close_path(mut self) -> Self {

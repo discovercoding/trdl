@@ -23,6 +23,7 @@ pub enum TrdlError {
     NotEnoughVertices,
     NonSimplePolygon,
     NoVisibleGeometry,
+    ArcToIsLineTo,
 }
 
 impl fmt::Display for TrdlError {
@@ -37,6 +38,7 @@ impl fmt::Display for TrdlError {
             TrdlError::NotEnoughVertices => write!(f, "{}", self.description()),
             TrdlError::NonSimplePolygon => write!(f, "{}", self.description()),
             TrdlError::NoVisibleGeometry => write!(f, "{}", self.description()),
+            TrdlError::ArcToIsLineTo => write!(f, "{}", self.description()),
         }
     }
 }
@@ -52,7 +54,8 @@ impl std::error::Error for TrdlError {
             TrdlError::InvalidLinkError => "An error occurred during shader program link",
             TrdlError::NotEnoughVertices => "A polygon must have 3 or more points",
             TrdlError::NonSimplePolygon => "Error triangulating polygon, is it non-simple?",
-            TrdlError::NoVisibleGeometry => "Either the stroke or fill (or both) must be set"
+            TrdlError::NoVisibleGeometry => "Either the stroke or fill (or both) must be set",
+            TrdlError::ArcToIsLineTo => "One of the radii is 0, so this is just a line"
         }
     }
 
@@ -66,7 +69,8 @@ impl std::error::Error for TrdlError {
             TrdlError::InvalidLinkError => None,
             TrdlError::NotEnoughVertices => None,
             TrdlError::NonSimplePolygon => None,
-            TrdlError::NoVisibleGeometry => None
+            TrdlError::NoVisibleGeometry => None,
+            TrdlError::ArcToIsLineTo => None
         }
     }
 }
