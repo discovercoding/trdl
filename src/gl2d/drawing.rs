@@ -46,6 +46,30 @@ impl Path {
         path
     }
 
+    pub fn rectangle(center: (f32, f32), width: f32, height: f32, angle: f32) -> Self {
+        let x2 = width/2f32;
+        let x1 = -x2;
+        let y2 = height/2f32;
+        let y1 = -y2;
+
+        let mut points = [(x1, y1), (x2, y1), (x2, y2), (x1, y2)];
+        Self::rotate_points(&mut points, angle);
+        for p in &mut points {
+            *p = (p.0 + center.0, p.1 + center.1);
+        }
+        Self::new(points[0]).line_to(points[1]).line_to(points[2]).line_to(points[3]).close_path()
+    }
+
+    pub fn ellipse(center: (f32, f32), x_radius: f32, y_radius:f32, angle: f32) -> Self {
+        let mut points = [(x_radius, 0f32), (0f32, y_radius)];
+        Self::rotate_points(&mut points, angle);
+        for p in &mut points {
+            *p = (p.0 + center.0, p.1 + center.1);
+        }
+        Self::new(points[0]).arc_to(x_radius, y_radius, angle, points[1], false, true).
+            arc_to(x_radius, y_radius, angle, points[0], true, true).close_path()
+    }
+
     pub fn line_to(mut self, end_point: (f32, f32)) -> Self {
         self.control_point_1s.push(None);
         self.control_point_2s.push(None);
@@ -270,7 +294,7 @@ impl Path {
         }
     }
 
-    fn rotate_points(points: &mut Vec<(f32, f32)>, angle: f32) {
+    fn rotate_points(points: &mut [(f32, f32)], angle: f32) {
         let cos_angle = angle.cos();
         let sin_angle = angle.sin();
         for p in points {

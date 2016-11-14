@@ -3,51 +3,8 @@ extern crate trdl;
 
 use std::os::raw::c_void;
 
-fn make_shape(off_x: f32, off_y: f32, fill_color: Option<(f32, f32, f32)>,
-              stroke_color: (f32, f32, f32), stroke_width: u32) -> trdl::Path {
-    trdl::Path::new((500f32, 300f32)).
-        arc_to(200f32, 200f32, 0f32, (300f32, 500f32), true, true).
-        arc_to(200f32, 200f32, 0f32, (500f32, 300f32), false, true).
-        //arc_to(200f32, 200f32, 0f32, (100f32, 300f32), true, true).
-        //arc_to(200f32, 200f32, 0f32, (300f32, 100f32), true, true).
-        //arc_to(200f32, 200f32, 0f32, (500f32, 300f32), true, true).
-        set_stroke(0.1f32, 0.8f32, 0f32, 6)
+fn make_shape(off_x: f32, off_y: f32) -> Vec<trdl::Path> {
 
-//    let a0 = (150f32 + off_x, 150f32 + off_y);
-//    let b0 = (300f32 + off_x, 200f32 + off_y);
-//    let bc1 = (350f32 + off_x, 250f32 + off_y);
-//    let bc2 = (200f32 + off_x, 250f32 + off_y);
-//    let c0 = (200f32 + off_x, 300f32 + off_y);
-//    let d0 = (50f32 + off_x, 100f32 + off_y);
-//    let de1 = (0f32 + off_x, 50f32 + off_y);
-//    let de2 = (50f32 + off_x, 0f32 + off_y);
-//    let e0 = (150f32 + off_x, 0f32 + off_y);
-//
-//    trdl::Path::with_num_vertices(a0, 5).
-//        line_to(b0).
-//        curve_to(bc1, bc2, c0).
-//        line_to(d0).
-//        curve_to(de1, de2, e0).
-//        // line_to(a0). // automatic, but allowed
-//        close_path().
-//        set_stroke(stroke_color.0, stroke_color.1, stroke_color.2, stroke_width)
-
-//    let a = (  0f32 + off_x, 0f32   + off_y);
-//    let b = (200f32 + off_x, 0f32   + off_y);
-//    let c = (200f32 + off_x, 200f32 + off_y);
-//    let d = (  0f32 + off_x, 200f32 + off_y);
-
-//    let path = trdl::Path::with_num_vertices(4).
-//        add_straight_line(a).
-//        add_straight_line(b).
-//        add_straight_line(c).
-//        add_straight_line(d).
-//        set_stroke(stroke_color.0, stroke_color.1, stroke_color.2, stroke_width);
-//    if let Some(fill_color) = fill_color {
-//        path.set_fill_color(fill_color.0, fill_color.1, fill_color.2).close_path()
-//    } else {
-//        path
-//    }
 }
 
 struct Window {
@@ -92,9 +49,10 @@ fn main() {
         for j in 0..sqrt_size {
             let delta_y = 100 + wy * (j as i32) / (sqrt_size as i32);
             let fill_color = if do_fill { Some(colors[idx]) } else { None };
-            drawing.add_path
-                (make_shape(delta_x as f32, delta_y as f32,
-                            fill_color, stroke_colors[idx], thicknesses[idx])).unwrap();
+            let (s1, s2) = make_shape(delta_x as f32, delta_y as f32,
+                                      fill_color, stroke_colors[idx], thicknesses[idx]);
+            drawing.add_path(s1).unwrap();
+            drawing.add_path(s2).unwrap();
             do_fill = !do_fill;
             idx += 1;
             if idx > 3 { idx = 0; }
