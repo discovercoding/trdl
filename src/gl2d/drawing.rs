@@ -525,7 +525,7 @@ impl<'a, W: Window> Drawing<'a, W> {
 
         let num_verts = path.vertices.len();
         self.depth_idx += 1;
-        let depth = (self.depth_idx as f32) / MAX_DEPTH;
+        let depth = (MAX_DEPTH - (self.depth_idx as f32)) / MAX_DEPTH;
 
         for t in 0..self.num_tris {
             let ti0 = 3*t;
@@ -627,7 +627,7 @@ impl<'a, W: Window> Drawing<'a, W> {
         self.do_fill.append(&mut vec![0 as GLint; 3 * self.num_tris]);
 
         self.depth_idx += 1;
-        let depth = (self.depth_idx as f32) / MAX_DEPTH;
+        let depth = (MAX_DEPTH - (self.depth_idx as f32)) / MAX_DEPTH;
 
         for i in 0..self.num_tris {
             let v0 = path.vertices[i];
