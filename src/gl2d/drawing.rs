@@ -674,7 +674,7 @@ impl<'a, W: Window> Drawing<'a, W> {
         self.window.set_context();
     }
 
-    pub fn clear_paths(&self) {
+    pub fn clear_paths(&mut self) {
         self.vertices.clear();
         self.control_point_1s.clear();
         self.control_point_2s.clear();
