@@ -674,6 +674,19 @@ impl<'a, W: Window> Drawing<'a, W> {
         self.window.set_context();
     }
 
+    pub fn clear_paths(&self) {
+        self.vertices.clear();
+        self.control_point_1s.clear();
+        self.control_point_2s.clear();
+        self.fill_colors.clear();
+        self.stroke_colors.clear();
+        self.stroke_edges.clear();
+        self.do_fill.clear();
+        self.depth_idx = 0;
+        self.num_tris = 0;
+        self.remake = true;
+    }
+
     pub fn draw(&mut self) {
         unsafe {
             if self.remake {
