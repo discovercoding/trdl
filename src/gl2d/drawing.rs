@@ -79,7 +79,7 @@ impl Path {
     /// See https://www.w3.org/TR/SVG/implnote.html#ArcImplementationNotes
     pub fn arc_to(mut self, x_radius: f32, y_radius: f32, angle: f32, end_point: (f32, f32),
               is_large_arc: bool, is_positive_sweep: bool) -> Self {
-        if let Ok((center, mut start_angle, mut sweep_angle)) =
+        if let Ok((center, start_angle, sweep_angle)) =
             self.get_ellipse_params(x_radius, y_radius, angle, end_point,
                                     is_large_arc, is_positive_sweep) {
             // approximate a circular arc (radius = x_radius) with Bezier splines
@@ -436,7 +436,7 @@ impl<'a, W: Window> Drawing<'a, W> {
 
             // Create the buffer objects
             const NUM_VBO: i32 = 7;
-            let mut vbo_handles = [0 as GLuint, 0 as GLuint, 0 as GLuint, 0 as GLuint,
+            let vbo_handles = [0 as GLuint, 0 as GLuint, 0 as GLuint, 0 as GLuint,
                                0 as GLuint, 0 as GLuint, 0 as GLuint];
             gl::GenBuffers(NUM_VBO, mem::transmute(&vbo_handles[0]));
 

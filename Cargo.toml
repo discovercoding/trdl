@@ -4,16 +4,10 @@ version = "0.1.0"
 authors = ["JeremySorensen <jeremy.a.sorensen@gmail.com>"]
 
 [dependencies]
-glutin = "*"
 gl = "*"
 libc = "*"
-time = "*"
-rand = "0.3"
 
 [lib]
 name = "trdl"
 path = "src/lib.rs"
 
-[[bin]]
-name = "trdl_demo"
-path = "src/main.rs"
