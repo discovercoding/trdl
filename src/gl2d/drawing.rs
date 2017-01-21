@@ -23,7 +23,7 @@ const TWO:   GLfloat = gl!(2);
 const THREE: GLfloat = gl!(3);
 
 const MAX_DEPTH : f32 = 5e5f32;
-const TOL: f32 = 1e-7f32;
+const TOL: f32 = 1e-6f32;
 
 pub trait Window {
     fn set_context(&self);
