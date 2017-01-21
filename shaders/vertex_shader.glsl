@@ -17,6 +17,7 @@ out int v_do_fill;
 
 uniform mat4 projection;
 
+// Apply the projection matrix and pass on needed info.
 void main() {
     gl_Position = projection * vec4(in_position, 1);
     v_control_1 = (projection * vec4(in_control_1, 0, 1)).xy;

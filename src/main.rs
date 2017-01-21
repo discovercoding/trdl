@@ -9,10 +9,10 @@ use rand::distributions::{IndependentSample, Range};
 
 const MAX_PARTICLES: usize = 500;
 
+// Make the glutin window into the TRDL window
 struct Window {
     w: glutin::Window
 }
-
 impl trdl::Window for Window {
     fn set_context(&self) {
         unsafe { self.w.make_current().unwrap() };
@@ -22,11 +22,13 @@ impl trdl::Window for Window {
     }
 }
 
+// Two different particles with two different sets of defining parameters.
 enum ParticleShape {
     Rectangle{ width: f32, height: f32, angle: f32},
     Circle{ diameter: f32 }
 }
 
+// All the info for a particle
 struct Particle {
     position: (f32, f32),
     velocity: (f32, f32),
@@ -36,6 +38,7 @@ struct Particle {
 }
 
 impl Particle {
+    // make a particle with all random attributes.
     fn with_random_inputs(rng: &mut StdRng, win_width: u32, win_height: u32) -> Particle {
         let x_pos_range = Range::new(0f32, win_width as f32);
         let y_pos_range = Range::new(0f32, win_height as f32);
@@ -66,15 +69,18 @@ impl Particle {
             fill_color: fill_color, shape: shape }
     }
 
+    // Update the position based on the velocity.
     fn update(&mut self) {
         self.position = (self.position.0 + self.velocity.0, self.position.1 + self.velocity.1);
     }
 
+    // Check if a particle is still in the screen.
     fn is_in_window(&self, win_width: u32, win_height: u32) -> bool {
         (self.position.0 >= 0f32 && self.position.0 <= (win_width as f32)) &&
             (self.position.1 >= 0f32 && self.position.1 <= (win_height as f32))
     }
 
+    // Create a TRDL path from a particle
     fn get_path(&self) -> trdl::Path {
         match self.shape {
             ParticleShape::Circle{diameter} => {
@@ -93,6 +99,7 @@ impl Particle {
     }
 }
 
+// update the positions of all particles, get rid of ones off the screen and add more
 fn update_particles(particles: &mut Vec<Particle>, rng: &mut StdRng,
                     win_width: u32, win_height: u32) {
     // update the positions of the particles
@@ -107,6 +114,7 @@ fn update_particles(particles: &mut Vec<Particle>, rng: &mut StdRng,
     }
 }
 
+// Draw all visible particles.
 fn draw_particles<'a, W: trdl::Window + 'a>(drawing: &mut trdl::Drawing<'a, W>,
                                             particles: &Vec<Particle>) {
     drawing.clear_paths();
@@ -116,6 +124,7 @@ fn draw_particles<'a, W: trdl::Window + 'a>(drawing: &mut trdl::Drawing<'a, W>,
     drawing.draw();
 }
 
+// Create a full-screen window and fill it with random moving particles until the user types 'q'.
 fn main() {
     let monitor = glutin::get_available_monitors().next().unwrap();
     let window = Window {

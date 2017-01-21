@@ -19,6 +19,7 @@ out int tc_do_fill[];
 uniform int outer_tess;
 uniform int inner_tess;
 
+// Set the tessellation level and pass on needed information.
 void main() {
     tc_control_1[gl_InvocationID] = v_control_1[gl_InvocationID];
     tc_control_2[gl_InvocationID] = v_control_2[gl_InvocationID];

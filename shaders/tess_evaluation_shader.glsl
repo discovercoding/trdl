@@ -17,6 +17,7 @@ out vec2 te_tan_ca;
 out vec3 te_stroke_color;
 out int  te_do_fill;
 
+// Position tessellated triangles based on Bezier triangle equation. Calculate edge derivatives. Pass on needed info.
 void main() {
 
     float s = gl_TessCoord.x;
@@ -36,14 +37,18 @@ void main() {
     vec2 c   = gl_in[2].gl_Position.xy;
     vec2 ca0 = tc_control_1[2].xy;
     vec2 ca1 = tc_control_2[2].xy;
+    // center point is just average of all other points
     vec2 ce = a + ab0 + ab1 + b + bc0 + bc1 + c + ca0 + ca1;
     ce /= 9.0;
 
+    // Bezier triangle equation
     vec2 pos = vec2(
               a*s*s_sq + 3*ab0*s_sq*t + 3*ab1*s*t_sq +
               b*t*t_sq + 3*bc0*t_sq*u + 3*bc1*t*u_sq +
               c*u*u_sq + 3*ca0*u_sq*s + 3*ca1*u*s_sq
               + 6*ce*s*t*u);
+
+    // derivatives for tangents
     // only valid if u is basically 0
     te_tan_ab = vec2(3*s_sq*(ab0 - a) + 6*s*t*(ab1-ab0) + 3*t_sq*(b-ab1));
     // only valid if s is basically 0

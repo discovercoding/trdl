@@ -4,10 +4,12 @@ extern crate trdl;
 use std::f32;
 use std::os::raw::c_void;
 
+// Offset the location of a point.
 fn offset(point: (f32, f32), offset: (f32, f32)) -> (f32, f32) {
     (point.0 + offset.0, point.1 + offset.1)
 }
 
+// Make the foot of the turtle, they are all the same except mirrored over the x and y axes.
 fn make_foot(off: (f32, f32), is_right: bool, is_back: bool) -> Vec<trdl::Path> {
     let mut foot_points = [(0f32, 0f32), (50f32, 50f32), (80f32, 100f32), (100f32, 200f32),
         (0f32, 250f32), (-75f32, 200f32), (-100f32, 100f32), (0f32, 0f32)];
@@ -100,6 +102,8 @@ fn make_tail(off: (f32, f32)) -> trdl::Path {
         set_fill_color(0.684f32, 0.765f32, 0f32).set_stroke(0f32, 0f32, 0f32, 6)
 }
 
+// the shell is a circle, 3 diameters spaced to make 6 pie slices and a hexagon whose corners lie on
+// the diameters.
 fn make_shell(off: (f32, f32)) -> Vec<trdl::Path> {
     let radius = 250f32;
     let c = f32::consts::FRAC_PI_3.cos();
@@ -127,6 +131,7 @@ fn make_shell(off: (f32, f32)) -> Vec<trdl::Path> {
 
 }
 
+// make the turtle by creating the 4 feet, the tail the head and the shell.
 fn make_shape(off_x: f32, off_y: f32) -> Vec<trdl::Path> {
     let mut paths = Vec::new();
     paths.append(&mut make_foot((off_x + 220f32, off_y + 100_f32), false, false));
@@ -139,10 +144,10 @@ fn make_shape(off_x: f32, off_y: f32) -> Vec<trdl::Path> {
     paths
 }
 
+// Make the glutin window into the TRDL window
 struct Window {
     w: glutin::Window
 }
-
 impl trdl::Window for Window {
     fn set_context(&self) {
         unsafe { self.w.make_current().unwrap() };
@@ -152,6 +157,7 @@ impl trdl::Window for Window {
     }
 }
 
+// Create a window and draw the turtle.
 fn main() {
     let window_size = (1280, 800);
     let window = Window {

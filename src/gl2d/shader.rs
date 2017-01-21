@@ -5,6 +5,7 @@ use std::str;
 use std::ffi::CString;
 use super::super::TrdlError;
 
+// Default pass through shader if none specified.
 static DEFAULT_VERTEX_SHADER: &'static str =
     r"#version 400
     in vec3 vertex_position;
@@ -15,6 +16,7 @@ static DEFAULT_VERTEX_SHADER: &'static str =
         gl_Position = vec4(vertex_position, 1.0);
     }";
 
+// Default shader if none specified.
 static DEFAULT_FRAGMENT_SHADER: &'static str =
     r"#version 400
     in vec3 color;
@@ -23,6 +25,7 @@ static DEFAULT_FRAGMENT_SHADER: &'static str =
         frag_color = vec4(color, 1.0);
     }";
 
+/// Allows user to build a shader program by adding individual shaders.
 pub struct ShaderProgramBuilder<'a> {
     vertex_shader_code: &'a str,
     tess_control_shader_code: Option<&'a str>,
@@ -31,6 +34,7 @@ pub struct ShaderProgramBuilder<'a> {
     fragment_shader_code: &'a str
 }
 
+/// Compiled shader program handles. Also cleans up on drop.
 #[derive(Debug, PartialEq)]
 pub struct ShaderProgram {
     vertex_shader_id: GLuint,
@@ -42,6 +46,7 @@ pub struct ShaderProgram {
 }
 
 impl<'a> ShaderProgramBuilder<'a> {
+    /// Contrutor, default vertex and fragment shader, no other shaders.
     pub fn new() -> ShaderProgramBuilder<'a> {
         ShaderProgramBuilder {
             vertex_shader_code: DEFAULT_VERTEX_SHADER,
@@ -52,31 +57,37 @@ impl<'a> ShaderProgramBuilder<'a> {
         }
     }
 
+    /// Set the vertex shader code string
     pub fn set_vertex_shader<'b>(&'b mut self, code: &'a str) -> &'b mut Self {
         self.vertex_shader_code = code;
         self
     }
 
+    /// Set the tessellation control shader code string
     pub fn set_tess_control_shader<'b>(&'b mut self, code: &'a str) -> &'b mut Self {
         self.tess_control_shader_code = Some(code);
         self
     } 
 
+    /// Set the tessellation evaluation shader code string
     pub fn set_tess_evaluation_shader<'b>(&'b mut self, code: &'a str) -> &'b mut Self {
         self.tess_evaluation_shader_code = Some(code);
         self
     } 
 
+    /// Set the geometry shader code string
     pub fn set_geometry_shader<'b>(&'b mut self, code: &'a str) -> &'b mut Self {
         self.geometry_shader_code = Some(code);
         self
     } 
 
+    /// Set the fragment shader code string
     pub fn set_fragment_shader<'b>(&'b mut self, code: &'a str) -> &'b mut Self {
         self.fragment_shader_code = code;
         self
     }
 
+    /// Compile all the shaders and link into a shader program.
     pub fn build_shader_program(&'a mut self) -> Result<ShaderProgram, TrdlError> {
         let vertex_shader_id = try!(self.compile_shader(self.vertex_shader_code, gl::VERTEX_SHADER));
         let tess_control_shader_id = match self.tess_control_shader_code {
@@ -104,6 +115,7 @@ impl<'a> ShaderProgramBuilder<'a> {
             program_id: program_id })
     }
 
+    // compile a particular shader
     fn compile_shader(&'a self, code: &str, shader_type: GLuint) -> Result<GLuint, TrdlError> {
         unsafe {
             let shader_id = gl::CreateShader(shader_type);
@@ -187,15 +199,12 @@ impl<'a> ShaderProgramBuilder<'a> {
 }
 
 impl ShaderProgram {
-    //pub fn get_vertex_shader_id(&self) -> GLuint { self.vertex_shader_id }
-    //pub fn get_tess_control_shader_id(&self) -> Option<GLuint> { self.tess_control_shader_id }
-    //pub fn get_tess_evaluation_shader_id(&self) -> Option<GLuint> { self.tess_evaluation_shader_id }
-    //pub fn getgeometry_shader_id(&self) -> Option<GLuint> { self.geometry_shader_id }
-    //pub fn get_fragment_shader_id(&self) -> GLuint { self.fragment_shader_id }
+    /// Get a numeric OpenGL handle to the shader program.
     pub fn get_program_id(&self) -> GLuint { self.program_id }
 }
 
 impl Drop for ShaderProgram {
+    /// Delete the shader program and all the shaders.
     fn drop(&mut self) {
         unsafe {
             gl::DeleteProgram(self.program_id);

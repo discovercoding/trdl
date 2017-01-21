@@ -25,11 +25,14 @@ const THREE: GLfloat = gl!(3);
 const MAX_DEPTH : f32 = 5e5f32;
 const TOL: f32 = 1e-5f32;
 
+/// Users of the library must provide a window with these functions, they are provided by winit,
+/// glutin, GLFW-rs
 pub trait Window {
     fn set_context(&self);
     fn load_fn(&self, addr: &str) -> *const c_void;
 }
 
+/// All shapes in TRDL are paths, which are built by adding lines curves and arcs.
 pub struct Path {
     vertices: Vec<(f32, f32)>,
     control_point_1s: Vec<Option<(f32, f32)>>,
@@ -40,6 +43,7 @@ pub struct Path {
 }
 
 impl Path {
+    /// Constructor, takes the first point in the path as input.
     pub fn new(start: (f32, f32)) -> Self {
         let mut path = Path { vertices: Vec::new(), control_point_1s: Vec::new(),
             control_point_2s: Vec::new(), fill_color: None, stroke: None, is_closed: false };
@@ -47,30 +51,8 @@ impl Path {
         path
     }
 
-    pub fn rectangle(center: (f32, f32), width: f32, height: f32, angle: f32) -> Self {
-        let x2 = width/2f32;
-        let x1 = -x2;
-        let y2 = height/2f32;
-        let y1 = -y2;
-
-        let mut points = [(x1, y1), (x2, y1), (x2, y2), (x1, y2)];
-        Self::rotate_points(&mut points, angle);
-        for p in &mut points {
-            *p = (p.0 + center.0, p.1 + center.1);
-        }
-        Self::new(points[0]).line_to(points[1]).line_to(points[2]).line_to(points[3]).close_path()
-    }
-
-    pub fn ellipse(center: (f32, f32), x_radius: f32, y_radius:f32, angle: f32) -> Self {
-        let mut points = [(x_radius, 0f32), (0f32, y_radius)];
-        Self::rotate_points(&mut points, angle);
-        for p in &mut points {
-            *p = (p.0 + center.0, p.1 + center.1);
-        }
-        Self::new(points[0]).arc_to(x_radius, y_radius, angle, points[1], false, true).
-            arc_to(x_radius, y_radius, angle, points[0], true, true).close_path()
-    }
-
+    /// Add a straight line segment from the current point to end_point, which becomes the current
+    /// point.
     pub fn line_to(mut self, end_point: (f32, f32)) -> Self {
         self.control_point_1s.push(None);
         self.control_point_2s.push(None);
@@ -78,6 +60,9 @@ impl Path {
         self
     }
 
+    /// Add a cubic Bezier curve starting at the current point to end_point, which becomes the
+    /// current point. The curves defined by control_point_1 and control_point_2. The current point
+    /// can be considered control_point_0, and the end_point control_point_3.
     pub fn curve_to(mut self, control_point_1: (f32, f32), control_point_2: (f32, f32),
                     end_point: (f32, f32),) -> Self {
         self.control_point_1s.push(Some(control_point_1));
@@ -86,6 +71,12 @@ impl Path {
         self
     }
 
+    /// Add an elliptical arc starting at the current point to end_point, which becomes the current
+    /// point. The arc is defined by x_radius and y_radius, angle, which describe the whole ellipse
+    /// of which the arc is a part. It is also described by is_positive_sweep which determine if the
+    /// arc curves clockwise or counter clockwise and is_large_arc which determines if the arc takes
+    /// the short path or long path to the end point.
+    /// See https://www.w3.org/TR/SVG/implnote.html#ArcImplementationNotes
     pub fn arc_to(mut self, x_radius: f32, y_radius: f32, angle: f32, end_point: (f32, f32),
               is_large_arc: bool, is_positive_sweep: bool) -> Self {
         if let Ok((center, mut start_angle, mut sweep_angle)) =
@@ -132,6 +123,70 @@ impl Path {
         self
     }
 
+    /// Makes a polygon closed so it can be filled with color. If the last point is not the same as
+    /// the first point, they are connected with a straight line.
+    pub fn close_path(mut self) -> Self {
+        self.is_closed = true;
+        if self.vertices[0] == self.vertices[self.vertices.len()-1] {
+            self.vertices.pop();
+        } else {
+            self.control_point_1s.push(None);
+            self.control_point_2s.push(None);
+        }
+        self
+    }
+
+    /// Sets the fill color for closed shapes.
+    pub fn set_fill_color(mut self, red: f32, green: f32, blue: f32) -> Self {
+        self.fill_color = Some([red as GLfloat, green as GLfloat, blue as GLfloat]);
+        self
+    }
+
+    /// Removes the fill color if previously set, shape will be drawn unfilled.
+    pub fn clear_fill_color(mut self) -> Self {
+        self.fill_color = None;
+        self
+    }
+
+    /// Set the stroke color and thickness of closed or open paths.
+    pub fn set_stroke(mut self, red: f32, green: f32, blue: f32, thickness: u32) -> Self {
+        self.stroke = Some(([red as GLfloat, green as GLfloat, blue as GLfloat], thickness));
+        self
+    }
+
+    /// Clears the stroke of a path, shape will be drawn unstroked.
+    pub fn clear_stroke(mut self) -> Self {
+        self.stroke = None;
+        self
+    }
+
+    /// Create a rectangle path.
+    pub fn rectangle(center: (f32, f32), width: f32, height: f32, angle: f32) -> Self {
+        let x2 = width/2f32;
+        let x1 = -x2;
+        let y2 = height/2f32;
+        let y1 = -y2;
+
+        let mut points = [(x1, y1), (x2, y1), (x2, y2), (x1, y2)];
+        Self::rotate_points(&mut points, angle);
+        for p in &mut points {
+            *p = (p.0 + center.0, p.1 + center.1);
+        }
+        Self::new(points[0]).line_to(points[1]).line_to(points[2]).line_to(points[3]).close_path()
+    }
+
+    /// Create an ellipse path.
+    pub fn ellipse(center: (f32, f32), x_radius: f32, y_radius:f32, angle: f32) -> Self {
+        let mut points = [(x_radius, 0f32), (0f32, y_radius)];
+        Self::rotate_points(&mut points, angle);
+        for p in &mut points {
+            *p = (p.0 + center.0, p.1 + center.1);
+        }
+        Self::new(points[0]).arc_to(x_radius, y_radius, angle, points[1], false, true).
+            arc_to(x_radius, y_radius, angle, points[0], true, true).close_path()
+    }
+
+    // calculate the center point, start angle and sweep angle of the arc.
     fn get_ellipse_params(&mut self, x_radius: f32, y_radius: f32, angle: f32, end_point: (f32, f32),
                           is_large_arc: bool, is_positive_sweep: bool) ->
                           Result<((f32, f32), f32, f32), TrdlError> {
@@ -184,6 +239,7 @@ impl Path {
         Ok(((cx, cy), start_angle, sweep_angle))
     }
 
+    // make sure the radii are big enough to make sense.
     fn fix_radii(x_radius: f32, y_radius: f32, x_sq: f32, y_sq: f32) -> Result<(f32, f32), TrdlError> {
         if x_radius < TOL || y_radius == TOL { return Err(TrdlError::ArcToIsLineTo); }
         let x_radius = x_radius.abs();
@@ -197,6 +253,7 @@ impl Path {
         }
     }
 
+    // used to calulate the start angle and sweep angle.
     fn get_angle(ux: f32, uy: f32, vx: f32, vy: f32) -> f32 {
         let u_mag = (ux*ux + uy*uy).sqrt();
         let v_mag = (vx*vx + vy*vy).sqrt();
@@ -209,6 +266,7 @@ impl Path {
         }
     }
 
+    // Makes 1, 2, 3, or 4 quarter circle arcs
     fn quarter_circle(radius: f32, num_quadrants: usize,
                       is_positive_sweep: bool) -> Vec<(f32, f32)> {
         // math is from http://pomax.github.io/bezierinfo/#circles_cubic
@@ -241,6 +299,7 @@ impl Path {
         result
     }
 
+    // makes a circular arc with less than 90 degrees
     fn less_than_quarter_circle(radius: f32, angle: f32, quadrant: usize,
                                 is_positive_sweep: bool) -> Vec<(f32, f32)> {
         // math is from http://pomax.github.io/bezierinfo/#circles_cubic
@@ -273,6 +332,7 @@ impl Path {
         }
     }
 
+    // rotates points by angle.
     fn rotate_points(points: &mut [(f32, f32)], angle: f32) {
         let cos_angle = angle.cos();
         let sin_angle = angle.sin();
@@ -282,39 +342,9 @@ impl Path {
             *p = (cos_angle*x - sin_angle*y, sin_angle*x + cos_angle*y);
         }
     }
-
-    pub fn close_path(mut self) -> Self {
-        self.is_closed = true;
-        if self.vertices[0] == self.vertices[self.vertices.len()-1] {
-            self.vertices.pop();
-        } else {
-            self.control_point_1s.push(None);
-            self.control_point_2s.push(None);
-        }
-        self
-    }
-
-    pub fn set_fill_color(mut self, red: f32, green: f32, blue: f32) -> Self {
-        self.fill_color = Some([red as GLfloat, green as GLfloat, blue as GLfloat]);
-        self
-    }
-
-    pub fn clear_fill_color(mut self) -> Self {
-        self.fill_color = None;
-        self
-    }
-
-    pub fn set_stroke(mut self, red: f32, green: f32, blue: f32, thickness: u32) -> Self {
-        self.stroke = Some(([red as GLfloat, green as GLfloat, blue as GLfloat], thickness));
-        self
-    }
-
-    pub fn clear_stroke(mut self) -> Self {
-        self.stroke = None;
-        self
-    }
 }
 
+/// Manages everything under the hood. Paths are added to the drawing and then drawn.
 pub struct Drawing<'a, W: Window + 'a> {
     window: &'a W,
     window_size: [GLfloat; 2],
@@ -361,11 +391,13 @@ pub struct Drawing<'a, W: Window + 'a> {
 }
 
 impl<'a, W: Window> Drawing<'a, W> {
+    /// Constructor, a window, window size and background color.
     pub fn new(window: &'a W, width: u32, height: u32, bg_red: f32, bg_green: f32, bg_blue: f32) ->
             Result<Drawing<W>, TrdlError> {
         window.set_context();
         gl::load_with(|symbol| window.load_fn(symbol));
 
+        // load the shaders and compile them into a shader program
         let vertex_shader_code = try!(read_file("shaders/vertex_shader.glsl"));
         let tess_control_shader_code = try!(read_file("shaders/tess_control_shader.glsl"));
         let tess_evaluation_shader_code = try!(read_file("shaders/tess_evaluation_shader.glsl"));
@@ -381,6 +413,8 @@ impl<'a, W: Window> Drawing<'a, W> {
             builder.set_fragment_shader(&fragment_shader_code);
             program = try!(builder.build_shader_program());
         }
+
+        // setup the inputs to the vertex shader
         let program_id = program.get_program_id();
         unsafe {
             let c_str = CString::new("in_position").unwrap();
@@ -461,6 +495,7 @@ impl<'a, W: Window> Drawing<'a, W> {
         }
     }
 
+    /// Add a path to the drawing.
     pub fn add_path(&mut self, path: Path) -> Result<(), TrdlError> {
         self.remake = true;
         if path.is_closed {
@@ -470,6 +505,7 @@ impl<'a, W: Window> Drawing<'a, W> {
         }
     }
 
+    // Triangulate the path.
     fn add_closed_path(&mut self, path: Path) -> Result<(), TrdlError> {
         let mut control_point_map = HashMap::new();
         let last = path.vertices.len() - 1;
@@ -548,6 +584,8 @@ impl<'a, W: Window> Drawing<'a, W> {
         Ok(())
     }
 
+    // make a new point such that the 3 points make a triangle, be careful that the order makes a
+    // counter clockwise winding
     fn make_extra_point(p0: (f32, f32), p1: (f32, f32)) -> Result<(f32, f32), TrdlError> {
         let offset = 5f32;
         if p1.0 > p0.0 {
@@ -589,6 +627,8 @@ impl<'a, W: Window> Drawing<'a, W> {
         }
     }
 
+    // take each segment between the points of the path and add a point to turn each one into an
+    // unfilled triangle.
     fn add_open_path(&mut self, path: Path) -> Result<(), TrdlError> {
 
         if path.stroke == None {
@@ -649,10 +689,12 @@ impl<'a, W: Window> Drawing<'a, W> {
         Ok(())
     }
 
+    /// Make this drawings render context the current one for the window.
     pub fn make_current(&self) {
         self.window.set_context();
     }
 
+    /// Clear all paths in a drawing so the drawing can be reused.
     pub fn clear_paths(&mut self) {
         self.vertices.clear();
         self.control_point_1s.clear();
@@ -666,6 +708,7 @@ impl<'a, W: Window> Drawing<'a, W> {
         self.remake = true;
     }
 
+    /// Draw all the paths.
     pub fn draw(&mut self) {
         unsafe {
             if self.remake {
@@ -799,6 +842,15 @@ impl<'a, W: Window> Drawing<'a, W> {
             gl::DrawArrays(gl::PATCHES, 0, self.vertices.len() as GLint);
         }
     }
+
+    /// Set new window size.
+    pub fn set_size(&mut self, width: u32, height: u32) {
+        self.ortho_proj = Self::ortho(width, height);
+        self.remake = true;
+        self.window_size = [gl!(width), gl!(height)];
+    }
+
+    // orthographic projection based on the window size, maps pixels to OpenGL normalized coords.
     fn ortho(width: u32, height: u32) -> [GLfloat; 16] {
         [
             TWO / gl!(width),  ZERO,              ZERO, ZERO,
@@ -807,15 +859,10 @@ impl<'a, W: Window> Drawing<'a, W> {
             -ONE,             -ONE,               ZERO, ONE
         ]
     }
-
-    pub fn set_size(&mut self, width: u32, height: u32) {
-        self.ortho_proj = Self::ortho(width, height);
-        self.remake = true;
-        self.window_size = [gl!(width), gl!(height)];
-    }
 }
 
 impl<'a, W: Window> Drop for Drawing<'a, W> {
+    /// Clean up all OpenGL stuff on drop.
     fn drop(&mut self) {
         unsafe {
             gl::DeleteBuffers(1, &self.position_vbo);
@@ -830,6 +877,7 @@ impl<'a, W: Window> Drop for Drawing<'a, W> {
     }
 }
 
+// read text from a file into a string.
 fn read_file(file_name: &str) -> Result<String, TrdlError> {
     let mut contents = String::new();
     let mut f = try!(File::open(file_name));
@@ -837,6 +885,7 @@ fn read_file(file_name: &str) -> Result<String, TrdlError> {
     Ok(contents)
 }
 
+// Choose control points to represent a straight line as a Bezier curve.
 fn bezier_line_control_points(first: (GLfloat, GLfloat), last: (GLfloat, GLfloat))-> 
         ((GLfloat, GLfloat), (GLfloat, GLfloat)) {
     let dx = (last.0 - first.0) / THREE;
@@ -892,6 +941,7 @@ fn push3(vec: &mut Vec<GLfloat>, value: [f32; 3]) {
     vec.push(value[2]);
 }
 
+// determine if the edge of a triangle is also an exterior edge of the polygon.
 fn triangle_edges(i0: usize, i1: usize, i2: usize, max: usize) -> (bool, bool, bool) {
     let e2 = i1 == 0 && i0 == max || (i1 > i0 && i1 - i0 == 1);
     let e0 = i2 == 0 && i1 == max || (i2 > i1 && i2 - i1 == 1);

@@ -1,8 +1,12 @@
-// module for triangulating a simple polygon using ear clipping
+//! Module for triangulating a simple polygon using ear clipping.
 
 use std::collections::HashSet;
 use super::TrdlError;
 
+// The vertex class holds the index of a vertex in the list of points. It also has the index of the
+// previousand next vertex as well as a flag indicating if it is convex and if it is an ear.
+// All of these attributes only makes sense as relationships between it and other vertices and are
+// determined by its location in the polygon.
 #[derive(Debug, PartialEq)]
 struct Vertex {
     index: usize,
@@ -12,17 +16,20 @@ struct Vertex {
     is_ear: bool
 }
 impl Vertex {
+    // Contructor
     fn new(index: usize, prev_index: usize, next_index: usize) -> Vertex {
         Vertex { index: index, prev_index: prev_index, next_index: next_index,
                  is_convex: false, is_ear: false }
     }
 }
 
+// Enum indicating whether a point is left of, right of or on a line segment.
 #[derive(Debug, PartialEq)]
 enum LineCompare {
     Left, Right, On
 }
 
+// Determine if a point is left of, right of, or on a line segment determined by two points.
 fn compare_to_line(v_test: &(f32, f32),
                    v_prev: &(f32, f32), v_next: &(f32, f32)) -> LineCompare {
     let val = (v_test.0 - v_prev.0)*(v_next.1 - v_prev.1) -
@@ -36,12 +43,14 @@ fn compare_to_line(v_test: &(f32, f32),
     }
 }
 
+// Determine if a angle created by 3 points is convex or reflex.
 fn is_convex(v_test: &(f32, f32),
              v_prev: &(f32, f32), v_next: &(f32, f32)) -> bool {
     // point is convex if right of line made by prev->next
     compare_to_line(v_test, v_prev, v_next) == LineCompare::Right
 }
 
+// Determine if a point is inside a triangle created by 3 other points.
 fn is_in_triangle(v_test: &(f32, f32), v0: &(f32, f32),
                   v1: &(f32, f32), v2: &(f32, f32)) -> bool {
 if compare_to_line(v_test, v0, v1) != LineCompare::Left { return false; }
@@ -50,6 +59,7 @@ if compare_to_line(v_test, v0, v1) != LineCompare::Left { return false; }
     true
 }
 
+// Determine if a point is an ear tip.
 // note: this function assumes v_test is convex!
 fn is_ear(points: &Vec<(f32, f32)>, reflex_set: &HashSet<usize>, v_test: &Vertex) -> bool {
     for r in reflex_set {
@@ -66,6 +76,7 @@ fn is_ear(points: &Vec<(f32, f32)>, reflex_set: &HashSet<usize>, v_test: &Vertex
     true
 }
 
+// Make a list of vectors from a vector of ordered points representing a polygon.
 fn make_vertex_vec(n: usize) -> Vec<Vertex> {
     let mut vertices = Vec::with_capacity(n);
     vertices.push(Vertex::new(0, n-1, 1));
@@ -76,6 +87,7 @@ fn make_vertex_vec(n: usize) -> Vec<Vertex> {
     vertices
 }
 
+// Enum representing the type of a vertex (reflex, convex or ear, ear implies convex)
 #[derive(Debug, Eq, PartialEq)]
 enum VertexType {
     Reflex,
@@ -83,6 +95,7 @@ enum VertexType {
     Ear
 }
 
+// Classify a vertex as reflex, convex or ear.
 fn classify_vertex(points: &Vec<(f32, f32)>, v_test: &mut Vertex,
                    reflex_set: &HashSet<usize>) -> VertexType {
     if is_convex(&points[v_test.index], &points[v_test.prev_index], &points[v_test.next_index]) {
@@ -96,6 +109,7 @@ fn classify_vertex(points: &Vec<(f32, f32)>, v_test: &mut Vertex,
     }
 }
 
+// Fill the ear set and the reflex set with the indices of the corresponding vertices.
 fn fill_sets(points: &Vec<(f32, f32)>,
              vertices: &mut Vec<Vertex>) -> (HashSet<usize>, HashSet<usize>) {
     let mut ear_set = HashSet::new();
@@ -123,6 +137,8 @@ fn fill_sets(points: &Vec<(f32, f32)>,
     (ear_set, reflex_set)
 }
 
+// Connect the 2 points on either side of a point, effectivly removing that point from the linked
+// list.
 fn remove_vertex(vertices: &mut Vec<Vertex>, i_test: usize) {
     let prev_index = vertices[i_test].prev_index;
     let next_index = vertices[i_test].next_index;
@@ -130,12 +146,18 @@ fn remove_vertex(vertices: &mut Vec<Vertex>, i_test: usize) {
     vertices[next_index].prev_index = prev_index;
 }
 
+// Add 3 points representing a triangle to the triangle list.
 fn push_triangle(triangles: &mut Vec<usize>, i_test: usize, i_prev: usize, i_next: usize) {
     triangles.push(i_prev);
     triangles.push(i_test);
     triangles.push(i_next);
 }
 
+/// Accept a vector of points representing vertices of a polygon with counter-clockwise ordering.
+/// Remove ear tips one at a time adding triangles to the triangle list until the last triangle
+/// which is added to the triangle list, creating a triangulation of the polygon.
+/// Return a list of indices into the original passed in list of vertices, every three indices is a
+/// triangle. Or return an error if a problem occurred.
 pub fn triangulate(points: &Vec<(f32, f32)>) -> Result<Vec<usize>, TrdlError> {
     let mut n = points.len();
     if n < 4 {

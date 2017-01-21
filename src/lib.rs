@@ -11,7 +11,7 @@ use std::io;
 use std::error::Error;
 use std::fmt;
 
-// standard TRDL error
+/// Standard TRDL error
 #[derive(Debug)]
 pub enum TrdlError {
     ShaderIo(io::Error),

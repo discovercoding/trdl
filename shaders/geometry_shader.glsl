@@ -19,6 +19,8 @@ uniform vec2 window_size;
 layout(triangles) in;
 layout(triangle_strip, max_vertices = 12) out;
 
+// Return true if a point is on the edge of a (non-tessellated original) triangle and that edge has its flag set.
+// A point is on an edge if a barycentric coordinate is zero.
 int is_edge(vec3 bary1, vec3 bary2, vec3 edges) {
     if (edges.x > 0 && bary1.x <= 0.000000001 && bary2.x <= 0.000000001) { return 1; }
     else if (edges.y > 0 && bary1.y <= 0.000000001 && bary2.y <= 0.000000001) { return 2; }
@@ -26,6 +28,8 @@ int is_edge(vec3 bary1, vec3 bary2, vec3 edges) {
     else { return 0; }
 }
 
+// Emit an edge
+// see http://prideout.net/blog/?p=54
 void make_edge(vec2 p0, vec2 p1, float depth, vec2 tan0, vec2 tan1, vec2 thickness, vec3 color) {
     tan0 = normalize(tan0);
     vec2 perp0 = vec2(-tan0.y, tan0.x) * thickness;
@@ -47,6 +51,8 @@ void make_edge(vec2 p0, vec2 p1, float depth, vec2 tan0, vec2 tan1, vec2 thickne
     EndPrimitive();
 }
 
+// Emit interior triangles if shape is filled. Emit edges where appropriate, make the depth a little less so the edges
+// are drawn on top of the shape.
 void main() {
     vec3 v0 = gl_in[0].gl_Position.xyz;
     vec3 v1 = gl_in[1].gl_Position.xyz;
