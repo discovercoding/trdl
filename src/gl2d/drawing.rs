@@ -184,7 +184,7 @@ impl Path {
     }
 
     fn fix_radii(x_radius: f32, y_radius: f32, x_sq: f32, y_sq: f32) -> Result<(f32, f32), TrdlError> {
-        if x_radius < TOLTOL || y_radius == TOL { return Err(TrdlError::ArcToIsLineTo); }
+        if x_radius < TOL || y_radius == TOL { return Err(TrdlError::ArcToIsLineTo); }
         let x_radius = x_radius.abs();
         let y_radius = y_radius.abs();
         let gamma = x_sq / (x_radius * x_radius) + y_sq / (y_radius * y_radius);
