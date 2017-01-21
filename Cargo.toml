@@ -8,6 +8,7 @@ glutin = "*"
 gl = "*"
 libc = "*"
 time = "*"
+rand = "0.3"
 
 [lib]
 name = "trdl"
@@ -15,4 +16,4 @@ path = "src/lib.rs"
 
 [[bin]]
 name = "trdl_demo"
-path = "src/bin.rs"
+path = "src/main.rs"
