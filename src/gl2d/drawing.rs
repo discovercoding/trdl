@@ -23,6 +23,7 @@ const TWO:   GLfloat = gl!(2);
 const THREE: GLfloat = gl!(3);
 
 const MAX_DEPTH : f32 = 5e5f32;
+const TOL: f32 = 1e-7f32;
 
 pub trait Window {
     fn set_context(&self);
@@ -85,14 +86,6 @@ impl Path {
         self
     }
 
-    fn print_points(points: &Vec<(f32, f32)>) {
-        println!("Points:");
-        for p in points {
-            println!("  ({}, {})", p.0, p.1);
-        }
-        println!("");
-    }
-
     pub fn arc_to(mut self, x_radius: f32, y_radius: f32, angle: f32, end_point: (f32, f32),
               is_large_arc: bool, is_positive_sweep: bool) -> Self {
         if let Ok((center, mut start_angle, mut sweep_angle)) =
@@ -107,21 +100,18 @@ impl Path {
             let remainder = sweep_angle.abs() - f32::consts::FRAC_PI_2 * (num_arcs as f32);
             println!("remainder is {}", remainder);
             let mut points = Self::quarter_circle(x_radius, num_arcs, sweep_angle >= 0f32);
-            if remainder > 0f32 {
+            if remainder.abs() > TOL {
                 points.append(&mut Self::less_than_quarter_circle(x_radius, remainder, num_arcs,
                                                                   sweep_angle >= 0f32));
                 num_arcs += 1;
             }
-            Self::print_points(&points);
             // now make the circular arc start at the right place
             Self::rotate_points(&mut points, start_angle);
-            Self::print_points(&points);
             // now make it into an ellipse
             let scale = y_radius / x_radius;
             for p in &mut points {
                 *p = (p.0, p.1 * scale);
             }
-            Self::print_points(&points);
             // rotate the ellipse
             Self::rotate_points(&mut points, angle);
             // center it in the correct location
@@ -130,7 +120,6 @@ impl Path {
                 let y = p.1;
                 *p = (x + center.0, y + center.1);
             }
-            Self::print_points(&points);
             // add the curves
             for i in 0..num_arcs {
                 let k = (i * 3) as usize;
@@ -158,7 +147,6 @@ impl Path {
         let y_sq = y * y;
 
         let (x_radius, y_radius) = try!(Self::fix_radii(x_radius, y_radius, x, y));
-        println!("fixed radii: {}, {}", x_radius, y_radius);
 
         let rx_sq = x_radius * x_radius;
         let ry_sq = y_radius * y_radius;
@@ -167,21 +155,17 @@ impl Path {
 
         let mut radical = ((rx_sq*ry_sq - rx_sq*y_sq - ry_sq*x_sq) /
                        (rx_sq*y_sq + ry_sq*x_sq)).sqrt();
-        println!("radical: {}", radical);
         if is_large_arc == is_positive_sweep {
             radical = -radical;
         }
-        println!("radical: {}", radical);
-        println!("(xt, yt) = ({}, {})", xt, yt);
+
         let cxt = radical * xt;
         let cyt = radical * yt;
-        println!("center': ({}, {})", cxt, cyt);
         let xt = (start_point.0 + end_point.0) / 2f32;
         let yt = (start_point.1 + end_point.1) / 2f32;
 
         let cx = cos_phi*cxt - sin_phi*cyt + xt;
         let cy = sin_phi*cxt + cos_phi*cyt + yt;
-        println!("center: ({}, {})", cx, cy);
 
         let xt = (x - cxt) / x_radius;
         let yt = (y - cyt) / y_radius;
@@ -190,19 +174,17 @@ impl Path {
 
         let start_angle = Self::get_angle(1f32, 0f32, xt, yt);
         let mut sweep_angle = Self::get_angle(xt, yt, xt2, yt2);
-        println!("start_angle: {}; sweep_angle: {}", start_angle, sweep_angle);
 
-        if is_positive_sweep && sweep_angle < 0f32 {
+        if is_positive_sweep && sweep_angle < TOL {
             sweep_angle += 2f32*f32::consts::PI;
-        } else if !is_positive_sweep && sweep_angle > 0f32 {
+        } else if !is_positive_sweep && sweep_angle > -TOL {
             sweep_angle -= 2f32*f32::consts::PI;
         }
-        println!("start_angle: {}; sweep_angle: {}", start_angle, sweep_angle);
         Ok(((cx, cy), start_angle, sweep_angle))
     }
 
     fn fix_radii(x_radius: f32, y_radius: f32, x_sq: f32, y_sq: f32) -> Result<(f32, f32), TrdlError> {
-        if x_radius == 0f32 || y_radius == 0f32 { return Err(TrdlError::ArcToIsLineTo); }
+        if x_radius < TOLTOL || y_radius == TOL { return Err(TrdlError::ArcToIsLineTo); }
         let x_radius = x_radius.abs();
         let y_radius = y_radius.abs();
         let gamma = x_sq / (x_radius * x_radius) + y_sq / (y_radius * y_radius);
