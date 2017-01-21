@@ -91,7 +91,7 @@ impl Path {
         if let Ok((center, mut start_angle, mut sweep_angle)) =
             self.get_ellipse_params(x_radius, y_radius, angle, end_point,
                                     is_large_arc, is_positive_sweep) {
-              // approximate a circular arc (radius = x_radius) with Bezier splines
+            // approximate a circular arc (radius = x_radius) with Bezier splines
 
             // break it into quarter-circle arcs
             let mut num_arcs = (sweep_angle.abs() / f32::consts::FRAC_PI_2).floor() as usize;
@@ -99,10 +99,10 @@ impl Path {
             println!("num_arcs is {}", num_arcs);
             let remainder = sweep_angle.abs() - f32::consts::FRAC_PI_2 * (num_arcs as f32);
             println!("remainder is {}", remainder);
-            let mut points = Self::quarter_circle(x_radius, num_arcs, sweep_angle >= 0f32);
+            let mut points = Self::quarter_circle(x_radius, num_arcs, sweep_angle >= TOL);
             if remainder.abs() > TOL {
                 points.append(&mut Self::less_than_quarter_circle(x_radius, remainder, num_arcs,
-                                                                  sweep_angle >= 0f32));
+                                                                  sweep_angle >= TOL));
                 num_arcs += 1;
             }
             // now make the circular arc start at the right place
@@ -201,7 +201,7 @@ impl Path {
         let v_mag = (vx*vx + vy*vy).sqrt();
         let arg = (ux*vx + uy*vy) / (u_mag * v_mag);
         let angle = arg.acos();
-        if ux*vy-uy*vx < 0f32 {
+        if ux*vy-uy*vx < -TOL {
             -angle
         } else {
             angle
