@@ -23,7 +23,7 @@ const TWO:   GLfloat = gl!(2);
 const THREE: GLfloat = gl!(3);
 
 const MAX_DEPTH : f32 = 5e5f32;
-const TOL: f32 = 1e-6f32;
+const TOL: f32 = 1e-5f32;
 
 pub trait Window {
     fn set_context(&self);
@@ -96,10 +96,11 @@ impl Path {
             // break it into quarter-circle arcs
             let mut num_arcs = (sweep_angle.abs() / f32::consts::FRAC_PI_2).floor() as usize;
             // and 1 less than 90 degree arc
-            println!("num_arcs is {}", num_arcs);
-            let remainder = sweep_angle.abs() - f32::consts::FRAC_PI_2 * (num_arcs as f32);
-            println!("remainder is {}", remainder);
-            let mut points = Self::quarter_circle(x_radius, num_arcs, sweep_angle >= TOL);
+             let remainder = sweep_angle.abs() - f32::consts::FRAC_PI_2 * (num_arcs as f32);
+            let mut points = Vec::new();
+            if num_arcs > 0 {
+                points.append(&mut Self::quarter_circle(x_radius, num_arcs, sweep_angle >= TOL));
+            }
             if remainder.abs() > TOL {
                 points.append(&mut Self::less_than_quarter_circle(x_radius, remainder, num_arcs,
                                                                   sweep_angle >= TOL));
@@ -245,14 +246,10 @@ impl Path {
         // math is from http://pomax.github.io/bezierinfo/#circles_cubic
         let s = angle.sin();
         let c = angle.cos();
-        println!("sin = {}; cos = {}", s, c);
         let f = 4f32 / 3f32 * (angle / 4f32).tan();
-        println!("f = {}", f);
         let th1 = c + f*s;
         let th2 = s - f*c;
-        println!("th = ({}, {})", th1, th2);
 
-        println!("quadrant: {}", quadrant);
         if is_positive_sweep {
             if quadrant == 0 {
                 vec![(radius, f * radius), (th1 * radius, th2 * radius), (c * radius, s * radius)]
